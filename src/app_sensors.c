@@ -29,24 +29,21 @@ static const char *now_str(void)
 	return buf;
 }
 
-static int process_mpu6050(const struct device *dev)
+static int process_mpu6050()
 {
 	struct sensor_value temperature;
 	struct sensor_value accel[3];
 	struct sensor_value gyro[3];
-	int rc = sensor_sample_fetch(dev);
+	int rc = sensor_sample_fetch(dev_mpu9250);
 
 	if (rc == 0) {
-		rc = sensor_channel_get(dev, SENSOR_CHAN_ACCEL_XYZ,
-					accel);
+		rc = sensor_channel_get(dev_mpu9250, SENSOR_CHAN_ACCEL_XYZ, accel);
 	}
 	if (rc == 0) {
-		rc = sensor_channel_get(dev, SENSOR_CHAN_GYRO_XYZ,
-					gyro);
+		rc = sensor_channel_get(dev_mpu9250, SENSOR_CHAN_GYRO_XYZ, gyro);
 	}
 	if (rc == 0) {
-		rc = sensor_channel_get(dev, SENSOR_CHAN_AMBIENT_TEMP,
-					&temperature);
+		rc = sensor_channel_get(dev_mpu9250, SENSOR_CHAN_AMBIENT_TEMP, &temperature);
 	}
 	if (rc == 0) {
 		printk("[%s]:%i Cel\n"
@@ -83,7 +80,7 @@ int app_sensors_init(app_sensors_callback_t callback)
 
 int app_sensors_read_mpu(void)
 {
-	process_mpu6050(dev_mpu9250);
+	process_mpu6050();
 
 	return 0;
 }
