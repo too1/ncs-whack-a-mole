@@ -8,6 +8,7 @@
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/device.h>
 #include <app_sensors.h>
+#include <app_bt.h>
 
 /* 1000 msec = 1 sec */
 #define SLEEP_TIME_MS   1000
@@ -52,7 +53,7 @@ static int button_led_init(void)
 	if (ret != 0) {
 		printk("Error %d: failed to configure interrupt on %s pin %d\n",
 			ret, button.port->name, button.pin);
-		return;
+		return ret;
 	}
 	static struct gpio_callback button_callback;
 	gpio_init_callback(&button_callback, on_button_pressed, BIT(button.pin));
@@ -62,6 +63,11 @@ static int button_led_init(void)
 }
 
 void sensors_callback(app_sensors_event_t *event)
+{
+
+}
+
+void bluetooth_callback(app_bt_event_t *event)
 {
 
 }
@@ -78,7 +84,13 @@ void main(void)
 
 	ret = app_sensors_init(sensors_callback);
 	if (ret < 0) {
-		printk("Sensors init failed\n");
+		printk("Sensors init failed (err %d)\n", ret);
+		return;
+	}
+
+	ret = app_bt_init(bluetooth_callback);
+	if (ret < 0) {
+		printk("Bluetooth init failed (err %i)", ret);
 		return;
 	}
 	
