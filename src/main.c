@@ -9,16 +9,12 @@
 #include <zephyr/device.h>
 #include <app_sensors.h>
 #include <app_bt.h>
+#include <app_led.h>
 
 /* 1000 msec = 1 sec */
 #define SLEEP_TIME_MS   1000
 
-/* The devicetree node identifier for the "led0" alias. */
-#define LED0_NODE DT_ALIAS(led0)
-
 #define BUTTON0_NODE DT_NODELABEL(button0)
-
-static const struct gpio_dt_spec led = GPIO_DT_SPEC_GET(LED0_NODE, gpios);
 
 static const struct gpio_dt_spec button = GPIO_DT_SPEC_GET(BUTTON0_NODE, gpios);
 
@@ -31,13 +27,10 @@ static int button_led_init(void)
 {
 	int ret;
 
-	if (!device_is_ready(led.port)) {
-		return -1;
-	}
-
-	ret = gpio_pin_configure_dt(&led, GPIO_OUTPUT_ACTIVE);
+	ret = app_led_init();
 	if (ret < 0) {
-		return -1;
+		printk("LED init error (err %i)", ret);
+		return ret;
 	}
 
 	if (!device_is_ready(button.port)) {
@@ -55,6 +48,7 @@ static int button_led_init(void)
 			ret, button.port->name, button.pin);
 		return ret;
 	}
+	
 	static struct gpio_callback button_callback;
 	gpio_init_callback(&button_callback, on_button_pressed, BIT(button.pin));
 	gpio_add_callback(button.port, &button_callback);
@@ -97,10 +91,7 @@ void main(void)
 	printk("Basic Thingy52 sensor sample\n");
 
 	while (1) {
-		ret = gpio_pin_toggle_dt(&led);
-		if (ret < 0) {
-			return;
-		}
+		app_led_toggle(LED_COLOR_RED);
 
 		app_sensors_read_mpu();
 
