@@ -90,9 +90,9 @@ void main(void)
 	
 	printk("Basic Thingy52 sensor sample\n");
 
-	while (1) {
-		app_led_toggle(LED_COLOR_RED);
+	app_led_blink(LED_COLOR_RED, LED_COLOR_BLUE, LED_SPEED_NORMAL);
 
+	while (1) {
 		app_sensors_read_mpu();
 
 		k_msleep(SLEEP_TIME_MS);

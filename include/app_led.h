@@ -18,8 +18,14 @@
 
 typedef uint32_t led_color_t;
 
+typedef enum {LED_SPEED_FAST = 100, LED_SPEED_NORMAL = 250, LED_SPEED_SLOW = 1000} led_speed_t;
+
 int app_led_init(void);
 
-int app_led_toggle(led_color_t color1);
+int app_led_toggle(led_color_t color);
+
+int app_led_blink(led_color_t c1, led_color_t c2, led_speed_t speed);
+
+int app_led_off(void);
 
 #endif
