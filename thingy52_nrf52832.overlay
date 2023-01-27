@@ -19,3 +19,7 @@
 		int-gpios = <&gpio0 06 GPIO_ACTIVE_HIGH>;
 	};
 };
+
+&sx1509b {
+	status = "okay";
+};
