@@ -21,11 +21,37 @@ static const struct bt_data sd[] = {
 
 static app_bt_callback_t m_callback;
 
+static app_bt_event_t m_event;
+
 static struct bt_conn *current_conn;
+
+static void trigger_app_callback(app_bt_evt_type_t type)
+{
+	m_event.type = type;
+	m_callback(&m_event);
+}
+
+static void bt_connected(struct bt_conn *conn, uint8_t err)
+{
+	trigger_app_callback(APP_BT_EVT_CONNECTED);
+}
+
+static void bt_disconnected(struct bt_conn *conn, uint8_t reason)
+{
+	trigger_app_callback(APP_BT_EVT_DISCONNECTED);
+}
+
+BT_CONN_CB_DEFINE(conn_callbacks) = {
+	.connected    = bt_connected,
+	.disconnected = bt_disconnected,
+};
 
 static void bt_receive_cb(struct bt_conn *conn, const uint8_t *const data, uint16_t len)
 {
-
+	m_event.type = APP_BT_EVT_RX;
+	m_event.buf = data;
+	m_event.length = (uint32_t)len;
+	m_callback(&m_event);
 }
 
 static struct bt_nus_cb nus_cb = {
@@ -42,6 +68,7 @@ int app_bt_init(app_bt_callback_t callback)
 	if (ret < 0) {
 		return ret;
 	}
+	
 
 	ret = bt_nus_init(&nus_cb);
 	if (ret < 0) {

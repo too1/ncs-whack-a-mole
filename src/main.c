@@ -63,7 +63,18 @@ void sensors_callback(app_sensors_event_t *event)
 
 void bluetooth_callback(app_bt_event_t *event)
 {
-
+	switch(event->type) {
+		case APP_BT_EVT_CONNECTED:
+			app_led_blink(LED_COLOR_BLUE, LED_COLOR_BLUE, LED_SPEED_SLOW);
+			break;
+		case APP_BT_EVT_DISCONNECTED:
+			app_led_blink(LED_COLOR_BLUE, LED_COLOR_BLACK, LED_SPEED_SLOW);
+			break;
+		case APP_BT_EVT_RX:
+			printk("Data received!!\n");
+			app_led_blink(LED_COLOR_PURPLE, LED_COLOR_GREEN, LED_SPEED_FAST);
+			break;
+	}
 }
 
 void main(void)
@@ -90,7 +101,7 @@ void main(void)
 	
 	printk("Basic Thingy52 sensor sample\n");
 
-	app_led_blink(LED_COLOR_RED, LED_COLOR_BLUE, LED_SPEED_NORMAL);
+	app_led_blink(LED_COLOR_BLUE, LED_COLOR_BLACK, LED_SPEED_SLOW);
 
 	while (1) {
 		app_sensors_read_mpu();
