@@ -15,4 +15,6 @@ typedef void (*app_bt_callback_t)(app_bt_event_t *event);
 
 int app_bt_init(app_bt_callback_t callback);
 
+int app_bt_send(const uint8_t *data, uint16_t len);
+
 #endif

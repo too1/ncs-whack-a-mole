@@ -33,11 +33,13 @@ static void trigger_app_callback(app_bt_evt_type_t type)
 
 static void bt_connected(struct bt_conn *conn, uint8_t err)
 {
+	current_conn = conn;
 	trigger_app_callback(APP_BT_EVT_CONNECTED);
 }
 
 static void bt_disconnected(struct bt_conn *conn, uint8_t reason)
 {
+	current_conn = NULL;
 	trigger_app_callback(APP_BT_EVT_DISCONNECTED);
 }
 
@@ -81,4 +83,9 @@ int app_bt_init(app_bt_callback_t callback)
 	}
 
 	return 0;
+}
+
+int app_bt_send(const uint8_t *data, uint16_t len)
+{
+	return bt_nus_send(current_conn, data, len);
 }

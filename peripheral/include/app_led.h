@@ -22,6 +22,8 @@ typedef enum {LED_SPEED_FAST = 100, LED_SPEED_NORMAL = 250, LED_SPEED_SLOW = 100
 
 int app_led_init(void);
 
+int app_led_set(led_color_t color);
+
 int app_led_toggle(led_color_t color);
 
 int app_led_blink(led_color_t c1, led_color_t c2, led_speed_t speed);

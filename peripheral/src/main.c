@@ -10,6 +10,8 @@
 #include <app_sensors.h>
 #include <app_bt.h>
 #include <app_led.h>
+#include <string.h>
+#include <stdio.h>
 
 /* 1000 msec = 1 sec */
 #define SLEEP_TIME_MS   1000
@@ -18,9 +20,29 @@
 
 static const struct gpio_dt_spec button = GPIO_DT_SPEC_GET(BUTTON0_NODE, gpios);
 
+static struct {
+	bool trial_started;
+	uint32_t start_time;
+	uint32_t time; 
+} m_trial_data = {0};
+
+void trial_done_func(struct k_work *work)
+{
+	static uint8_t rsp_string[32];
+	app_led_set(LED_COLOR_BLACK);
+	printk("Trial completed in %i milliseconds\n", m_trial_data.time);
+	sprintf(rsp_string, "TD:%.6i", m_trial_data.time);
+	app_bt_send(rsp_string, strlen(rsp_string));
+}
+K_WORK_DEFINE(m_work_trial_done, trial_done_func);
+
 void on_button_pressed(const struct device *port, struct gpio_callback *cb, gpio_port_pins_t pins)
 {
-	
+	if(m_trial_data.trial_started) {
+		m_trial_data.time = k_uptime_get_32() - m_trial_data.start_time;
+		m_trial_data.trial_started = false;		
+		k_work_submit(&m_work_trial_done);
+	}
 }
 
 static int button_led_init(void)
@@ -65,14 +87,20 @@ void bluetooth_callback(app_bt_event_t *event)
 {
 	switch(event->type) {
 		case APP_BT_EVT_CONNECTED:
-			app_led_blink(LED_COLOR_BLUE, LED_COLOR_BLUE, LED_SPEED_SLOW);
+			printk("Bluetooth connected\n");
+			app_led_set(LED_COLOR_BLACK);
 			break;
 		case APP_BT_EVT_DISCONNECTED:
-			app_led_blink(LED_COLOR_BLUE, LED_COLOR_BLACK, LED_SPEED_SLOW);
+			printk("Bluetooth disconnected\n");
+			app_led_blink(LED_COLOR_BLUE, LED_COLOR_BLACK, LED_SPEED_NORMAL);
 			break;
 		case APP_BT_EVT_RX:
 			printk("Data received!!\n");
-			app_led_blink(LED_COLOR_PURPLE, LED_COLOR_GREEN, LED_SPEED_FAST);
+			if(!m_trial_data.trial_started) {
+				app_led_set(LED_COLOR_PURPLE);
+				m_trial_data.trial_started = true;
+				m_trial_data.start_time = k_uptime_get_32();
+			}
 			break;
 	}
 }
@@ -101,11 +129,9 @@ void main(void)
 	
 	printk("Basic Thingy52 sensor sample\n");
 
-	app_led_blink(LED_COLOR_BLUE, LED_COLOR_BLACK, LED_SPEED_SLOW);
+	app_led_blink(LED_COLOR_BLUE, LED_COLOR_BLACK, LED_SPEED_NORMAL);
 
 	while (1) {
-		app_sensors_read_mpu();
-
 		k_msleep(SLEEP_TIME_MS);
 	}
 }

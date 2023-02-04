@@ -60,6 +60,16 @@ static int led_set_color(led_color_t color)
 	return ret;
 }
 
+int app_led_set(led_color_t color)
+{
+	if(led_blink_active) {
+		led_blink_active = false;
+		k_work_cancel_delayable(&work_led_blink);
+	}
+
+	return led_set_color(color);
+}
+
 int app_led_toggle(led_color_t color1)
 {
 	static bool led_on = true;
