@@ -29,11 +29,26 @@
 #define CONN_TIMEOUT  MIN(MAX((CONN_INTERVAL * 125 * \
 			       MAX(CONFIG_BT_MAX_CONN, 6) / 1000), 10), 3200)
 
+static const char adv_target_name[] = "Whack-A-Mole Button";
+static bool 	  adv_target_name_found;
+
 static void start_scan(void);
 
 static struct bt_conn *conn_connecting;
 static uint8_t volatile conn_count;
 static bool volatile is_disconnecting;
+
+static bool target_adv_name_found(struct bt_data *data, void *user_data)
+{
+	if (data->type == BT_DATA_NAME_COMPLETE) {
+		printk("Dev with name found: %.*s\n", data->data_len, data->data);
+		if(memcmp(data->data, adv_target_name, strlen(adv_target_name)) == 0) {
+			adv_target_name_found = true;
+		}
+		return false;
+	}
+	return true;
+}
 
 static void device_found(const bt_addr_le_t *addr, int8_t rssi, uint8_t type,
 			 struct net_buf_simple *ad)
@@ -69,8 +84,10 @@ static void device_found(const bt_addr_le_t *addr, int8_t rssi, uint8_t type,
 	bt_addr_le_to_str(addr, addr_str, sizeof(addr_str));
 	printk("Device found: %s (RSSI %d)\n", addr_str, rssi);
 
-	/* connect only to devices in close proximity */
-	if (rssi < -35) {
+	// Look for the target device name in the advertise payload, and return if it is not found
+	adv_target_name_found = false;
+	bt_data_parse(ad, target_adv_name_found, 0);
+	if (!adv_target_name_found) {
 		return;
 	}
 
