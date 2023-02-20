@@ -3,6 +3,6 @@
 
 #include <zephyr/kernel.h>
 
-int init_central(uint8_t iterations);
+int app_bt_init(void);
 
 #endif

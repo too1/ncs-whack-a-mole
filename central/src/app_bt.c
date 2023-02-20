@@ -41,7 +41,7 @@ static bool volatile is_disconnecting;
 static bool target_adv_name_found(struct bt_data *data, void *user_data)
 {
 	if (data->type == BT_DATA_NAME_COMPLETE) {
-		printk("Dev with name found: %.*s\n", data->data_len, data->data);
+		//printk("Dev with name found: %.*s\n", data->data_len, data->data);
 		if(memcmp(data->data, adv_target_name, strlen(adv_target_name)) == 0) {
 			adv_target_name_found = true;
 		}
@@ -312,7 +312,7 @@ static void disconnect(struct bt_conn *conn, void *data)
 	printk("success.\n");
 }
 
-int init_central(uint8_t iterations)
+int app_bt_init(void)
 {
 	int err;
 
@@ -328,28 +328,18 @@ int init_central(uint8_t iterations)
 
 	start_scan();
 
-	while (true) {
-		while (conn_count < CONFIG_BT_MAX_CONN) {
-			k_sleep(K_MSEC(10));
-		}
-
-		k_sleep(K_SECONDS(60));
-
-		if (!iterations) {
-			break;
-		}
-		iterations--;
-		printk("Iterations remaining: %u\n", iterations);
-
-		printk("Disconnecting all...\n");
-		is_disconnecting = true;
-		bt_conn_foreach(BT_CONN_TYPE_LE, disconnect, NULL);
-
-		while (is_disconnecting) {
-			k_sleep(K_MSEC(10));
-		}
-		printk("All disconnected.\n");
-	}
-
 	return 0;
 }
+
+void app_bt_disconnect_all(void)
+{
+	printk("Disconnecting all...\n");
+	is_disconnecting = true;
+	bt_conn_foreach(BT_CONN_TYPE_LE, disconnect, NULL);
+
+	while (is_disconnecting) {
+		k_sleep(K_MSEC(10));
+	}
+	printk("All disconnected.\n");
+}
+

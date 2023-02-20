@@ -11,5 +11,10 @@
 
 void main(void)
 {
-	(void)init_central(CONFIG_SAMPLE_CONN_ITERATIONS);
+	int ret;
+	ret = app_bt_init();
+	if (ret < 0) {
+		printk("BT init failed!\n");
+		return;
+	}
 }
