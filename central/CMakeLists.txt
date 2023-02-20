@@ -6,7 +6,8 @@ project(central_multilink)
 
 target_sources(app PRIVATE
   src/main.c
-  src/central_multilink.c
+  src/app_bt.c
 )
+target_include_directories(app PRIVATE src)
 
 zephyr_library_include_directories(${ZEPHYR_BASE}/samples/bluetooth)

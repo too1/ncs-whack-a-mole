@@ -7,8 +7,7 @@
  */
 
 #include <stdint.h>
-
-int init_central(uint8_t iterations);
+#include <app_bt.h>
 
 void main(void)
 {
