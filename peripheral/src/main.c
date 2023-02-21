@@ -115,11 +115,13 @@ void main(void)
 		return;
 	}
 
+#if defined(CONFIG_BOARD_THINGY52_NRF52832)
 	ret = app_sensors_init(sensors_callback);
 	if (ret < 0) {
 		printk("Sensors init failed (err %d)\n", ret);
 		return;
 	}
+#endif
 
 	ret = app_bt_init(bluetooth_callback);
 	if (ret < 0) {

@@ -1,14 +1,19 @@
 #include <app_led.h>
 #include <zephyr/drivers/gpio.h>
-#include <zephyr/drivers/gpio/gpio_sx1509b.h>
 #include <zephyr/device.h>
+
+#if defined(CONFIG_BOARD_THINGY52_NRF52832)	
+#include <zephyr/drivers/gpio/gpio_sx1509b.h>
+const struct device *dev_sx1509b;
+#else
+#include <zephyr/drivers/pwm.h>
+static const struct pwm_dt_spec pwm_led0 = PWM_DT_SPEC_GET(DT_ALIAS(pwm_led0));
+#endif
 
 #define NUMBER_OF_LEDS 3
 #define RED_LED DT_GPIO_PIN(DT_NODELABEL(led0), gpios)
 #define GREEN_LED DT_GPIO_PIN(DT_NODELABEL(led1), gpios)
 #define BLUE_LED DT_GPIO_PIN(DT_NODELABEL(led2), gpios)
-
-const struct device *dev_sx1509b;
 
 static const gpio_pin_t rgb_pins[] = {
 	RED_LED,
@@ -25,8 +30,9 @@ static bool led_blink_active = false;
 
 int app_led_init(void)
 {
-	int ret;
-	
+	int ret = 0;
+
+#if defined(CONFIG_BOARD_THINGY52_NRF52832)	
 	dev_sx1509b = DEVICE_DT_GET(DT_NODELABEL(sx1509b));
 
 	if (!device_is_ready(dev_sx1509b)) {
@@ -42,21 +48,33 @@ int app_led_init(void)
 			return ret;
 		}
 	}
+#else
+	if (!device_is_ready(pwm_led0.dev)) {
+		printk("PWM device is not ready!\n");
+		return -ENODEV;
+	}
+#endif 
 
 	k_work_init_delayable(&work_led_blink, led_blink_work_handler);
 	
-	return 0;
+	return ret;
 }
 
 static int led_set_color(led_color_t color)
 {
-	int ret = sx1509b_led_intensity_pin_set(dev_sx1509b, RED_LED, COLOR_CH_RED(color));
+	int ret = 0;
+#if defined(CONFIG_BOARD_THINGY52_NRF52832)
+	ret = sx1509b_led_intensity_pin_set(dev_sx1509b, RED_LED, COLOR_CH_RED(color));
 	if (ret == 0) {
 		ret = sx1509b_led_intensity_pin_set(dev_sx1509b, GREEN_LED, COLOR_CH_GREEN(color));
 	}
 	if (ret == 0) {
 		ret = sx1509b_led_intensity_pin_set(dev_sx1509b, BLUE_LED, COLOR_CH_BLUE(color));	
 	}
+#else 
+	ret = pwm_set_dt(&pwm_led0, 255, COLOR_CH_BLUE(color));
+	if(ret < 0) printk("PWM set error! %i\n", ret);
+#endif
 	return ret;
 }
 

@@ -1,12 +1,14 @@
 #include "app_sensors.h"
 #include <zephyr/device.h>
-#include <zephyr/drivers/sensor.h>
 #include <zephyr/drivers/gpio.h>
 #include <stdio.h>
 
 static app_sensors_callback_t m_callback;
 
 static const struct device *dev_mpu9250;
+
+#if defined(CONFIG_BOARD_THINGY52_NRF52832)
+#include <zephyr/drivers/sensor.h>
 
 static const char *now_str(void)
 {
@@ -106,3 +108,5 @@ static int mpu_pwr_ctrl_init(const struct device *dev)
 
 SYS_INIT(mpu_pwr_ctrl_init, POST_KERNEL,
 	 CONFIG_BOARD_CCS_VDD_PWR_CTRL_INIT_PRIORITY);
+
+#endif // defined(CONFIG_BOARD_THINGY52_NRF52832)
