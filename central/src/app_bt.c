@@ -40,7 +40,43 @@ static struct bt_conn *conn_connecting;
 static uint8_t volatile conn_count;
 static bool volatile is_disconnecting;
 
-static struct bt_nus_client nus_client;
+static struct per_context_t {
+	bool used;
+	bool ready;
+	struct bt_conn *conn;
+	struct bt_nus_client nus_client;
+} per_context[CONFIG_BT_MAX_CONN] = {0};
+
+static struct per_context_t *get_free_per_context(void)
+{
+	for(int i = 0; i < CONFIG_BT_MAX_CONN; i++) {
+		if(!per_context[i].used) {
+			per_context[i].used = true;
+			return &per_context[i];
+		}
+	}
+	return NULL;
+}
+
+static struct per_context_t *get_per_context_from_conn(struct bt_conn *conn)
+{
+	for(int i = 0; i < CONFIG_BT_MAX_CONN; i++) {
+		if(per_context[i].used && per_context[i].conn == conn) {
+			return &per_context[i];
+		}
+	}
+	return NULL;
+}
+
+static struct per_context_t *get_per_context_from_client(struct bt_nus_client *client)
+{
+	for(int i = 0; i < CONFIG_BT_MAX_CONN; i++) {
+		if(per_context[i].used && &per_context[i].nus_client == client) {
+			return &per_context[i];
+		}
+	}
+	return NULL;
+}
 
 static bool target_adv_name_found(struct bt_data *data, void *user_data)
 {
@@ -171,6 +207,12 @@ static void discovery_complete(struct bt_gatt_dm *dm,
 	bt_nus_subscribe_receive(nus);
 
 	bt_gatt_dm_data_release(dm);
+
+	struct per_context_t *peripheral = get_per_context_from_client(nus);
+	if (peripheral) {
+		peripheral->ready = true;
+		printk("Ready!!\n");
+	}
 }
 
 static void discovery_service_not_found(struct bt_conn *conn,
@@ -192,7 +234,7 @@ struct bt_gatt_dm_cb discovery_cb = {
 	.error_found       = discovery_error,
 };
 
-static void gatt_discover(struct bt_conn *conn)
+static void gatt_discover(struct bt_conn *conn, struct bt_nus_client *nus_client)
 {
 	int err;
 
@@ -203,7 +245,7 @@ static void gatt_discover(struct bt_conn *conn)
 	err = bt_gatt_dm_start(conn,
 			       BT_UUID_NUS_SERVICE,
 			       &discovery_cb,
-			       &nus_client);
+			       nus_client);
 	if (err) {
 		printk("could not start the discovery procedure, error code: %d\n", err);
 	}
@@ -232,6 +274,12 @@ static void connected(struct bt_conn *conn, uint8_t reason)
 		start_scan();
 	}
 
+	struct per_context_t *peripheral = get_free_per_context();
+	if (peripheral) {
+		peripheral->conn = conn;
+		peripheral->ready = false;
+	}
+
 	printk("Connected (%u): %s\n", conn_count, addr);
 
 #if defined(CONFIG_BT_SMP)
@@ -246,7 +294,7 @@ static void connected(struct bt_conn *conn, uint8_t reason)
 	mtu_exchange(conn);
 #endif
 
-	gatt_discover(conn);
+	gatt_discover(conn, &peripheral->nus_client);
 }
 
 static void disconnected(struct bt_conn *conn, uint8_t reason)
@@ -258,6 +306,11 @@ static void disconnected(struct bt_conn *conn, uint8_t reason)
 	printk("Disconnected: %s (reason 0x%02x)\n", addr, reason);
 
 	bt_conn_unref(conn);
+
+	struct per_context_t *peripheral = get_per_context_from_conn(conn);
+	if (peripheral) {
+		peripheral->used = false;
+	} 
 
 	if ((conn_count == 1U) && is_disconnecting) {
 		is_disconnecting = false;
@@ -397,10 +450,12 @@ int app_bt_init(void)
 		}
 	};
 
-	err = bt_nus_client_init(&nus_client, &init);
-	if (err) {
-		printk("NUS Client initialization failed (err %d)\n", err);
-		return err;
+	for(int i = 0; i < CONFIG_BT_MAX_CONN; i++) {
+		err = bt_nus_client_init(&(per_context[i].nus_client), &init);
+		if (err) {
+			printk("NUS Client initialization failed (err %d)\n", err);
+			return err;
+		}
 	}
 
 	bt_conn_cb_register(&conn_callbacks);
@@ -410,9 +465,18 @@ int app_bt_init(void)
 	return 0;
 }
 
-int app_bt_send_str(const uint8_t *string, uint16_t len)
+int app_bt_send_str(uint32_t con_index, const uint8_t *string, uint16_t len)
 {
-	return bt_nus_client_send(&nus_client, string, len);
+	if (con_index >= CONFIG_BT_MAX_CONN) {
+		return -EINVAL;
+	}
+	for (int i = 0; i < CONFIG_BT_MAX_CONN; i++) {
+		if (per_context[i].ready) {
+			if (bt_nus_client_send(&(per_context[i].nus_client), string, len) < 0) {
+				printk("ERROR sending to client %i: \n", i);
+			}
+		}
+	}
 }
 
 void app_bt_disconnect_all(void)

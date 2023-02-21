@@ -16,7 +16,7 @@ static void button_changed(uint32_t button_state, uint32_t has_changed)
 	
 	// If button 1 pressed
 	if(changed_and_pressed & DK_BTN1_MSK) {
-		app_bt_send_str("test", 4);
+		app_bt_send_str(0, "test", 4);
 	}
 }
 
@@ -38,7 +38,7 @@ void main(void)
 
 	while (1) {
 		k_msleep(10000);
-		ret = app_bt_send_str("timer", 5);
+		ret = app_bt_send_str(0, "timer", 5);
 		if (ret == 0) printk("Send BT success\n");
 		else printk("Send BT error: %i\n", ret);
 	}
