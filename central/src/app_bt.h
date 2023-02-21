@@ -5,4 +5,6 @@
 
 int app_bt_init(void);
 
+int app_bt_send_str(const uint8_t *string, uint16_t len);
+
 #endif

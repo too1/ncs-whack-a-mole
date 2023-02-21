@@ -370,13 +370,12 @@ static void disconnect(struct bt_conn *conn, void *data)
 
 static uint8_t nus_data_received(struct bt_nus_client *nus, const uint8_t *data, uint16_t len)
 {
-	printk("Data received!!\n");
+	printk("BT RX: %.*s\n", len, data);
 	return BT_GATT_ITER_CONTINUE;
 }
 
 static void nus_data_sent(struct bt_nus_client *nus, uint8_t err, const uint8_t *const data, uint16_t len)
 {
-	printk("Data sent!!\n");
 }
 
 int app_bt_init(void)
@@ -409,6 +408,11 @@ int app_bt_init(void)
 	start_scan();
 
 	return 0;
+}
+
+int app_bt_send_str(const uint8_t *string, uint16_t len)
+{
+	return bt_nus_client_send(&nus_client, string, len);
 }
 
 void app_bt_disconnect_all(void)
