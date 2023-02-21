@@ -7,7 +7,7 @@
 const struct device *dev_sx1509b;
 #else
 #include <zephyr/drivers/pwm.h>
-static const struct pwm_dt_spec pwm_led0 = PWM_DT_SPEC_GET(DT_ALIAS(pwm_led0));
+static const struct pwm_dt_spec pwm_leds[3] = {PWM_DT_SPEC_GET(DT_NODELABEL(pwm_led0)), PWM_DT_SPEC_GET(DT_NODELABEL(pwm_led1)), PWM_DT_SPEC_GET(DT_NODELABEL(pwm_led2))};
 #endif
 
 #define NUMBER_OF_LEDS 3
@@ -49,9 +49,11 @@ int app_led_init(void)
 		}
 	}
 #else
-	if (!device_is_ready(pwm_led0.dev)) {
-		printk("PWM device is not ready!\n");
-		return -ENODEV;
+	for (int i = 0; i < NUMBER_OF_LEDS; i++) {
+		if (!device_is_ready(pwm_leds[i].dev)) {
+			printk("PWM device %i is not ready!\n", i);
+			return -ENODEV;
+		}
 	}
 #endif 
 
@@ -72,8 +74,13 @@ static int led_set_color(led_color_t color)
 		ret = sx1509b_led_intensity_pin_set(dev_sx1509b, BLUE_LED, COLOR_CH_BLUE(color));	
 	}
 #else 
-	ret = pwm_set_dt(&pwm_led0, 255, COLOR_CH_BLUE(color));
-	if(ret < 0) printk("PWM set error! %i\n", ret);
+	ret = pwm_set_dt(&pwm_leds[0], 255, COLOR_CH_RED(color));
+	if (ret == 0) {
+		ret = pwm_set_dt(&pwm_leds[1], 255, COLOR_CH_GREEN(color));
+	}
+	if (ret == 0) {
+		ret = pwm_set_dt(&pwm_leds[2], 255, COLOR_CH_BLUE(color));
+	}
 #endif
 	return ret;
 }

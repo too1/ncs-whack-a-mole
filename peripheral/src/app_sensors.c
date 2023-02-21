@@ -3,12 +3,11 @@
 #include <zephyr/drivers/gpio.h>
 #include <stdio.h>
 
-static app_sensors_callback_t m_callback;
-
-static const struct device *dev_mpu9250;
-
 #if defined(CONFIG_BOARD_THINGY52_NRF52832)
 #include <zephyr/drivers/sensor.h>
+static const struct device *dev_mpu9250;
+
+static app_sensors_callback_t m_callback;
 
 static const char *now_str(void)
 {
