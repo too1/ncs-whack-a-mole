@@ -122,7 +122,7 @@ static void device_found(const bt_addr_le_t *addr, int8_t rssi, uint8_t type,
 	}
 
 	bt_addr_le_to_str(addr, addr_str, sizeof(addr_str));
-	printk("Device found: %s (RSSI %d)\n", addr_str, rssi);
+	//printk("Device found: %s (RSSI %d)\n", addr_str, rssi);
 
 	// Look for the target device name in the advertise payload, and return if it is not found
 	adv_target_name_found = false;
@@ -303,8 +303,6 @@ static void disconnected(struct bt_conn *conn, uint8_t reason)
 
 	bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
 
-	printk("Disconnected: %s (reason 0x%02x)\n", addr, reason);
-
 	bt_conn_unref(conn);
 
 	struct per_context_t *peripheral = get_per_context_from_conn(conn);
@@ -317,6 +315,8 @@ static void disconnected(struct bt_conn *conn, uint8_t reason)
 		start_scan();
 	}
 	conn_count--;
+
+	printk("Disconnected (count %i): %s (reason 0x%02x)\n", conn_count, addr, reason);
 }
 
 static bool le_param_req(struct bt_conn *conn, struct bt_le_conn_param *param)
@@ -429,6 +429,7 @@ static uint8_t nus_data_received(struct bt_nus_client *nus, const uint8_t *data,
 
 static void nus_data_sent(struct bt_nus_client *nus, uint8_t err, const uint8_t *const data, uint16_t len)
 {
+	
 }
 
 int app_bt_init(void)
@@ -477,6 +478,7 @@ int app_bt_send_str(uint32_t con_index, const uint8_t *string, uint16_t len)
 			}
 		}
 	}
+	return 0;
 }
 
 void app_bt_disconnect_all(void)
