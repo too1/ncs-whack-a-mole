@@ -18,6 +18,8 @@
 #include <zephyr/bluetooth/conn.h>
 #include <zephyr/bluetooth/uuid.h>
 #include <zephyr/bluetooth/gatt.h>
+#include <bluetooth/services/nus.h>
+#include <bluetooth/services/nus_client.h>
 #include <zephyr/sys/byteorder.h>
 
 #define SCAN_INTERVAL 0x0640 /* 1000 ms */
@@ -37,6 +39,8 @@ static void start_scan(void);
 static struct bt_conn *conn_connecting;
 static uint8_t volatile conn_count;
 static bool volatile is_disconnecting;
+
+static struct bt_nus_client nus_client;
 
 static bool target_adv_name_found(struct bt_data *data, void *user_data)
 {
@@ -155,6 +159,56 @@ static int mtu_exchange(struct bt_conn *conn)
 }
 #endif /* CONFIG_BT_GATT_CLIENT */
 
+static void discovery_complete(struct bt_gatt_dm *dm,
+			       void *context)
+{
+	struct bt_nus_client *nus = context;
+	printk("Service discovery completed\n");
+
+	bt_gatt_dm_data_print(dm);
+
+	bt_nus_handles_assign(dm, nus);
+	bt_nus_subscribe_receive(nus);
+
+	bt_gatt_dm_data_release(dm);
+}
+
+static void discovery_service_not_found(struct bt_conn *conn,
+					void *context)
+{
+	printk("Service not found!\n");
+}
+
+static void discovery_error(struct bt_conn *conn,
+			    int err,
+			    void *context)
+{
+	printk("Error while discovering GATT database: (%d)\n", err);
+}
+
+struct bt_gatt_dm_cb discovery_cb = {
+	.completed         = discovery_complete,
+	.service_not_found = discovery_service_not_found,
+	.error_found       = discovery_error,
+};
+
+static void gatt_discover(struct bt_conn *conn)
+{
+	int err;
+
+	/*if (conn != default_conn) {
+		return;
+	}*/
+
+	err = bt_gatt_dm_start(conn,
+			       BT_UUID_NUS_SERVICE,
+			       &discovery_cb,
+			       &nus_client);
+	if (err) {
+		printk("could not start the discovery procedure, error code: %d\n", err);
+	}
+}
+
 static void connected(struct bt_conn *conn, uint8_t reason)
 {
 	char addr[BT_ADDR_LE_STR_LEN];
@@ -191,6 +245,8 @@ static void connected(struct bt_conn *conn, uint8_t reason)
 #if defined(CONFIG_BT_GATT_CLIENT)
 	mtu_exchange(conn);
 #endif
+
+	gatt_discover(conn);
 }
 
 static void disconnected(struct bt_conn *conn, uint8_t reason)
@@ -312,6 +368,17 @@ static void disconnect(struct bt_conn *conn, void *data)
 	printk("success.\n");
 }
 
+static uint8_t nus_data_received(struct bt_nus_client *nus, const uint8_t *data, uint16_t len)
+{
+	printk("Data received!!\n");
+	return BT_GATT_ITER_CONTINUE;
+}
+
+static void nus_data_sent(struct bt_nus_client *nus, uint8_t err, const uint8_t *const data, uint16_t len)
+{
+	printk("Data sent!!\n");
+}
+
 int app_bt_init(void)
 {
 	int err;
@@ -323,6 +390,19 @@ int app_bt_init(void)
 	}
 
 	printk("Bluetooth initialized\n");
+
+	struct bt_nus_client_init_param init = {
+		.cb = {
+			.received = nus_data_received,
+			.sent = nus_data_sent,
+		}
+	};
+
+	err = bt_nus_client_init(&nus_client, &init);
+	if (err) {
+		printk("NUS Client initialization failed (err %d)\n", err);
+		return err;
+	}
 
 	bt_conn_cb_register(&conn_callbacks);
 
