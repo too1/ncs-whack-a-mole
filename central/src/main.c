@@ -9,6 +9,9 @@
 #include <stdint.h>
 #include <app_bt.h>
 #include <dk_buttons_and_leds.h>
+#include <game_whackamole.h>
+
+static struct game_t mygame;
 
 static void button_changed(uint32_t button_state, uint32_t has_changed)
 {
@@ -18,6 +21,16 @@ static void button_changed(uint32_t button_state, uint32_t has_changed)
 	if(changed_and_pressed & DK_BTN1_MSK) {
 		app_bt_send_str(0, "test", 4);
 	}
+}
+
+void on_app_bt_event(struct app_bt_evt_t *event)
+{
+	mygame.bt_rx(&mygame, event);
+}
+
+void on_game_bt_send(uint32_t con_index, const uint8_t *data, uint16_t len)
+{
+	app_bt_send_str(con_index, data, len);
 }
 
 void main(void)
@@ -30,16 +43,14 @@ void main(void)
 		return;
 	}
 
-	ret = app_bt_init();
+	ret = app_bt_init(on_app_bt_event);
 	if (ret < 0) {
 		printk("BT init failed!\n");
 		return;
 	}
 
-	while (1) {
-		k_msleep(10000);
-		ret = app_bt_send_str(0, "timer", 5);
-		if (ret == 0) printk("Send BT success\n");
-		else printk("Send BT error: %i\n", ret);
-	}
+	mygame.bt_send = on_game_bt_send;
+	whackamole_init(&mygame);
+
+	mygame.play(&mygame);
 }

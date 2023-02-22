@@ -7,6 +7,7 @@ project(central_multilink)
 target_sources(app PRIVATE
   src/main.c
   src/app_bt.c
+  src/game_whackamole.c
 )
 target_include_directories(app PRIVATE src)
 

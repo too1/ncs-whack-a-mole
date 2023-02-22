@@ -34,7 +34,14 @@ void trial_done_func(struct k_work *work)
 	sprintf(rsp_string, "TD:%.6i", m_trial_data.time);
 	app_bt_send(rsp_string, strlen(rsp_string));
 }
+
+void send_ping_func(struct k_work *work)
+{
+	app_bt_send("PING", 4);
+}
+
 K_WORK_DEFINE(m_work_trial_done, trial_done_func);
+K_WORK_DEFINE(m_work_send_ping, send_ping_func);
 
 void on_button_pressed(const struct device *port, struct gpio_callback *cb, gpio_port_pins_t pins)
 {
@@ -42,6 +49,9 @@ void on_button_pressed(const struct device *port, struct gpio_callback *cb, gpio
 		m_trial_data.time = k_uptime_get_32() - m_trial_data.start_time;
 		m_trial_data.trial_started = false;		
 		k_work_submit(&m_work_trial_done);
+	}
+	else {
+		k_work_submit(&m_work_send_ping);
 	}
 }
 
@@ -95,8 +105,20 @@ void bluetooth_callback(app_bt_event_t *event)
 			app_led_blink(LED_COLOR_BLUE, LED_COLOR_BLACK, LED_SPEED_NORMAL);
 			break;
 		case APP_BT_EVT_RX:
-			printk("Data received!!\n");
-			if(!m_trial_data.trial_started) {
+			printk("Data received: %.*s\n", event->length, event->buf);
+			// Team 1 command
+			if(memcmp(event->buf, "P0", 2) == 0) {
+				app_led_blink(LED_COLOR_RED, LED_COLOR_BLACK, LED_SPEED_NORMAL);
+			}
+			// Team 2 command
+			else if(memcmp(event->buf, "P1", 2) == 0) {
+				app_led_blink(LED_COLOR_GREEN, LED_COLOR_BLACK, LED_SPEED_NORMAL);
+			}
+			// Reset command
+			else if(memcmp(event->buf, "RST", 3) == 0) {
+				app_led_off();
+			}
+			else if(!m_trial_data.trial_started) {
 				app_led_set(LED_COLOR_PURPLE);
 				m_trial_data.trial_started = true;
 				m_trial_data.start_time = k_uptime_get_32();
