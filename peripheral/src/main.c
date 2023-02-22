@@ -99,6 +99,7 @@ void bluetooth_callback(app_bt_event_t *event)
 		case APP_BT_EVT_CONNECTED:
 			printk("Bluetooth connected\n");
 			app_led_set(LED_COLOR_BLACK);
+			m_trial_data.trial_started = false;
 			break;
 		case APP_BT_EVT_DISCONNECTED:
 			printk("Bluetooth disconnected\n");
@@ -117,6 +118,7 @@ void bluetooth_callback(app_bt_event_t *event)
 			// Reset command
 			else if(memcmp(event->buf, "RST", 3) == 0) {
 				app_led_off();
+				m_trial_data.trial_started = false;
 			}
 			else if(!m_trial_data.trial_started) {
 				app_led_set(LED_COLOR_PURPLE);
