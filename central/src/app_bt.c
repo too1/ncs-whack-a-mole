@@ -22,11 +22,11 @@
 #include <bluetooth/services/nus_client.h>
 #include <zephyr/sys/byteorder.h>
 
-#define SCAN_INTERVAL 0x0640 /* 1000 ms */
+#define SCAN_INTERVAL 0x00A0 /* 160 ms */
 #define SCAN_WINDOW   0x0030 /* 30 ms */
 #define INIT_INTERVAL 0x0010 /* 10 ms */
 #define INIT_WINDOW   0x0010 /* 10 ms */
-#define CONN_INTERVAL 0x0320 /* 1000 ms */
+#define CONN_INTERVAL 40     /* 50 ms */
 #define CONN_LATENCY  0
 #define CONN_TIMEOUT  MIN(MAX((CONN_INTERVAL * 125 * \
 			       MAX(CONFIG_BT_MAX_CONN, 6) / 1000), 10), 3200)

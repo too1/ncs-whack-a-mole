@@ -58,7 +58,6 @@ static void whackamole_play(struct game_t *game)
         for(int i = 0; i < player[p].per_num; i++) {
             bt_cmd[1] = p + '0';
             game->bt_send(i + player[p].per_index, bt_cmd, 2);
-            k_msleep(240);
         }
     }
 
@@ -70,7 +69,6 @@ static void whackamole_play(struct game_t *game)
     for(int p = 0; p < 2; p++) {
         for(int i = 0; i < player[p].per_num; i++) {
             game->bt_send(i + player[p].per_index, "RST", 3);
-            k_msleep(240);
         }
     }
 
