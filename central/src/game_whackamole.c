@@ -2,6 +2,8 @@
 #include <string.h>
 #include <stdlib.h>
 
+#define CHALLENGE_NUM_MAX 32
+
 K_SEM_DEFINE(m_sem_num_players_update, 0, 1);
 K_SEM_DEFINE(m_sem_peripheral_update, 0, 1);
 K_SEM_DEFINE(m_sem_second_tick, 0, 1);
@@ -19,6 +21,8 @@ struct player_t {
     uint32_t per_num;
     bool player_ping_received;
     int time_until_challenge;
+    uint32_t challenge_response_time_list[CHALLENGE_NUM_MAX];
+    uint32_t challenge_counter;
 } player[2];
 
 void game_timer_func(struct k_timer *timer_id); 
@@ -27,6 +31,7 @@ K_TIMER_DEFINE(m_timer_game, game_timer_func, NULL);
 
 void whackamole_bt_rx(struct game_t *game, struct app_bt_evt_t *bt_evt)
 {
+    int player_index = (bt_evt->con_index < player[1].per_index) ? 0 : 1;
     switch(bt_evt->type) {
         case APP_BT_EVT_CON_NUM_CHANGE:
             num_players = bt_evt->num_connected;
@@ -35,10 +40,15 @@ void whackamole_bt_rx(struct game_t *game, struct app_bt_evt_t *bt_evt)
         case APP_BT_EVT_RX_DATA:
             if (memcmp(bt_evt->data, "PING", 4) == 0) {
                 ping_received = true;
-                if (bt_evt->con_index < player[1].per_index) {
-                    player[0].player_ping_received = true;
-                } else {
-                    player[1].player_ping_received = true;
+                player[player_index].player_ping_received = true;
+            }
+            else if (memcmp(bt_evt->data, "TD:", 3) == 0 && bt_evt->data_len >= 9) {
+                uint32_t response_time = 0;
+                for(int i = 0; i < 6; i++) {
+                    response_time = response_time * 10 + (bt_evt->data[i+3] - '0');
+                }
+                if (player[player_index].challenge_counter < CHALLENGE_NUM_MAX) {
+                    player[player_index].challenge_response_time_list[player[player_index].challenge_counter++] = response_time;
                 }
             }
             k_sem_give(&m_sem_peripheral_update);
@@ -71,6 +81,7 @@ static void whackamole_play(struct game_t *game)
         player[p].per_num = 1;
         player[p].player_ping_received = false;
         player[p].time_until_challenge = 0;
+        player[p].challenge_counter = 0;
     }
     player[0].player_ping_received = player[1].player_ping_received = false;
     uint8_t bt_cmd[2] = "P0";
@@ -113,10 +124,23 @@ static void whackamole_play(struct game_t *game)
         }
     }
 
+    // Print an end of round report
     printk("Round complete!\n");
     k_timer_stop(&m_timer_game);
-
-
+    for (int p = 0; p < 2; p++) {
+        int result, min = 1000000000, max = 0, total = 0;
+        printk("\nResults player %i: \n", p);
+        for (int i = 0; i < player[p].challenge_counter; i++) {
+            result = player[p].challenge_response_time_list[i];
+            printk("  Challenge %i: Time %i ms\n", (i+1), result);
+            if (result < min) min = result;
+            if (result > max) max = result;
+            total += result; 
+        }
+        printk("  Best result:  %i ms\n", min);
+        printk("  Worst result: %i ms\n", max);
+        printk("  Average:      %i ms\n", total / player[p].challenge_counter);
+    }
 }
 
 void game_timer_func(struct k_timer *timer_id)
