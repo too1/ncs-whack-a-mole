@@ -498,6 +498,7 @@ int app_bt_init(app_bt_callback_t callback)
 	};
 
 	for(int i = 0; i < CONFIG_BT_MAX_CONN; i++) {
+		per_context[i].index = i;
 		err = bt_nus_client_init(&(per_context[i].nus_client), &init);
 		if (err) {
 			printk("NUS Client initialization failed (err %d)\n", err);
@@ -518,16 +519,14 @@ int app_bt_send_str(uint32_t con_index, const uint8_t *string, uint16_t len)
 	if (con_index >= CONFIG_BT_MAX_CONN) {
 		return -EINVAL;
 	}
-	for (int i = 0; i < CONFIG_BT_MAX_CONN; i++) {
-		per_context[i].index = i;
-		if (per_context[i].ready) {
-			ret = bt_nus_client_send(&(per_context[i].nus_client), string, len);
-			if (ret < 0) {
-				printk("ERROR sending to client %i: %i\n", i, ret);
-				return ret;
-			}
+	if (per_context[con_index].ready) {
+		ret = bt_nus_client_send(&(per_context[con_index].nus_client), string, len);
+		if (ret < 0) {
+			printk("ERROR sending to client %i: %i\n", con_index, ret);
+			return ret;
 		}
 	}
+	else return -EBUSY;
 	return 0;
 }
 
