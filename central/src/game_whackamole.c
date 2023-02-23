@@ -77,8 +77,8 @@ static void whackamole_play(struct game_t *game)
     // Signalling to players which each peripheral belongs to
     printk("Sufficient controllers connected. Proceeding to team selection...\n");
     for(int p = 0; p < 2; p++) {
-        player[p].per_index = p;
-        player[p].per_num = 1;
+        player[p].per_num = num_players / 2;
+        player[p].per_index = p * (num_players / 2);
         player[p].player_ping_received = false;
         player[p].time_until_challenge = 0;
         player[p].challenge_counter = 0;
@@ -118,7 +118,7 @@ static void whackamole_play(struct game_t *game)
             else {
                 player[p].time_until_challenge--;
                 if (player[p].time_until_challenge == 0) {
-                    game->bt_send(p, "CHG", 3);
+                    game->bt_send(player[p].per_index + rand()%player[p].per_num, "CHG", 3);
                 }
             }
         }
@@ -129,17 +129,22 @@ static void whackamole_play(struct game_t *game)
     k_timer_stop(&m_timer_game);
     for (int p = 0; p < 2; p++) {
         int result, min = 1000000000, max = 0, total = 0;
-        printk("\nResults player %i: \n", p);
-        for (int i = 0; i < player[p].challenge_counter; i++) {
-            result = player[p].challenge_response_time_list[i];
-            printk("  Challenge %i: Time %i ms\n", (i+1), result);
-            if (result < min) min = result;
-            if (result > max) max = result;
-            total += result; 
+        if (player[p].challenge_counter > 0) {
+            printk("\nResults player %i: \n", p);
+            for (int i = 0; i < player[p].challenge_counter; i++) {
+                result = player[p].challenge_response_time_list[i];
+                printk("  Challenge %i: Time %i ms\n", (i+1), result);
+                if (result < min) min = result;
+                if (result > max) max = result;
+                total += result; 
+            }
+            printk("  Best result:  %i ms\n", min);
+            printk("  Worst result: %i ms\n", max);
+            printk("  Average:      %i ms\n", total / player[p].challenge_counter);
         }
-        printk("  Best result:  %i ms\n", min);
-        printk("  Worst result: %i ms\n", max);
-        printk("  Average:      %i ms\n", total / player[p].challenge_counter);
+        else {
+            printk("\nNo results for player %i\n",p);
+        }
     }
 }
 
