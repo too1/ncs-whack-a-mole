@@ -4,6 +4,9 @@
 
 #define CHALLENGE_NUM_MAX 32
 
+#define COLOR_PLAYER1       0x33FF11
+#define COLOR_PLAYER2       0x2299EE
+
 K_SEM_DEFINE(m_sem_num_players_update, 0, 1);
 K_SEM_DEFINE(m_sem_peripheral_update, 0, 1);
 K_SEM_DEFINE(m_sem_second_tick, 0, 1);
@@ -11,11 +14,18 @@ K_SEM_DEFINE(m_sem_second_tick, 0, 1);
 int num_players;
 bool ping_received;
 
-const led_effect_cfg_t led_effect_1 =  {.color1 = LED_COLOR_GREEN, 
-                                        .color2 = LED_COLOR_RED,
-                                        .color_end = LED_COLOR_BLACK,
-                                        .speed = 2,
-                                        .num_repeats = 3};
+
+const led_effect_cfg_t led_effect_p1_select = {.color1 = COLOR_PLAYER1, .color2 = LED_COLOR_BLACK, .color_end = LED_COLOR_BLACK,
+                                               .speed = 12, .num_repeats = LED_REPEAT_INFINITE};
+const led_effect_cfg_t led_effect_p2_select = {.color1 = COLOR_PLAYER2, .color2 = LED_COLOR_BLACK, .color_end = LED_COLOR_BLACK,
+                                               .speed = 12, .num_repeats = LED_REPEAT_INFINITE};
+const led_effect_cfg_t led_effect_challenge = {.color1 = LED_COLOR_PURPLE, .color2 = LED_COLOR_ORANGE, .color_end = LED_COLOR_BLACK,
+                                               .speed = 45, .num_repeats = LED_REPEAT_INFINITE};
+const led_effect_cfg_t led_effect_result_good = {.color1 = LED_COLOR_GREEN, .color2 = LED_COLOR_BLACK, .color_end = LED_COLOR_BLACK,
+                                               .speed = 60, .num_repeats = 40};
+const led_effect_cfg_t led_effect_result_bad = {.color1 = LED_COLOR_RED, .color2 = LED_COLOR_BLACK, .color_end = LED_COLOR_BLACK,
+                                               .speed = 60, .num_repeats = 40};
+
 struct whackamole_t {
     int round_duration_s;
     int time;
@@ -35,11 +45,30 @@ void game_timer_func(struct k_timer *timer_id);
 
 K_TIMER_DEFINE(m_timer_game, game_timer_func, NULL);
 
-static void send_color_effect(struct game_t *game, uint32_t per_index, const led_effect_cfg_t *effect)
+enum {PER_INDEX_ALL = 0x1000, PER_INDEX_ALL_P1, PER_INDEX_ALL_P2};
+
+static void send_color_effect(struct game_t *game, uint32_t per_index, uint8_t sub_cmd, const led_effect_cfg_t *effect)
 {
     static uint8_t led_effect_cmd[LED_EFFECT_CMD_SIZE];
-    led_effect_to_cmd(effect, '0', led_effect_cmd);
-    game->bt_send(per_index, led_effect_cmd, LED_EFFECT_CMD_SIZE);
+    led_effect_to_cmd(effect, sub_cmd, led_effect_cmd);
+    if(per_index == PER_INDEX_ALL_P1) {
+        for(int i = 0; i < player[0].per_num; i++) {
+            game->bt_send(player[0].per_index + i, led_effect_cmd, LED_EFFECT_CMD_SIZE);
+        }
+    }
+    else if(per_index == PER_INDEX_ALL_P2) {
+        for(int i = 0; i < player[1].per_num; i++) {
+            game->bt_send(player[1].per_index + i, led_effect_cmd, LED_EFFECT_CMD_SIZE);
+        }
+    }
+    else if(per_index == PER_INDEX_ALL) {
+         for(int i = 0; i < (player[0].per_num + player[1].per_num); i++) {
+            game->bt_send(i, led_effect_cmd, LED_EFFECT_CMD_SIZE);
+        }       
+    }
+    else {
+        game->bt_send(per_index, led_effect_cmd, LED_EFFECT_CMD_SIZE);
+    }
 }
 
 void whackamole_bt_rx(struct game_t *game, struct app_bt_evt_t *bt_evt)
@@ -52,9 +81,8 @@ void whackamole_bt_rx(struct game_t *game, struct app_bt_evt_t *bt_evt)
             break;
         case APP_BT_EVT_RX_DATA:
             if (memcmp(bt_evt->data, "PING", 4) == 0) {
-                //ping_received = true;
-                //player[player_index].player_ping_received = true;
-                send_color_effect(game, bt_evt->con_index, &led_effect_1);
+                ping_received = true;
+                player[player_index].player_ping_received = true;
             }
             else if (memcmp(bt_evt->data, "TD:", 3) == 0 && bt_evt->data_len >= 9) {
                 uint32_t response_time = 0;
@@ -75,10 +103,10 @@ static void whackamole_play(struct game_t *game)
     printk("Welcome to Whack-A-Mole. The most exiting game in the world!!!\n");
     printk("Waiting for peripherals to connect...\n");
     
-    whackamole.round_duration_s = 180;
+    whackamole.round_duration_s = 60;
     whackamole.time = 0;
-    whackamole.challenge_int_min = 5;
-    whackamole.challenge_int_range = 20;
+    whackamole.challenge_int_min = 2;
+    whackamole.challenge_int_range = 14;
 
     // Waiting for players to connect
     ping_received = false;
@@ -98,23 +126,21 @@ static void whackamole_play(struct game_t *game)
         player[p].challenge_counter = 0;
     }
     player[0].player_ping_received = player[1].player_ping_received = false;
-    uint8_t bt_cmd[2] = "P0";
-    for(int p = 0; p < 2; p++) {
-        for(int i = 0; i < player[p].per_num; i++) {
-            bt_cmd[1] = p + '0';
-            game->bt_send(i + player[p].per_index, bt_cmd, 2);
-        }
-    }
+
+    send_color_effect(game, PER_INDEX_ALL_P1, '0', &led_effect_p1_select);
+    send_color_effect(game, PER_INDEX_ALL_P2, '0', &led_effect_p2_select);
 
     // Waiting for confirmation to proceed from both players
     while (!(player[0].player_ping_received && player[1].player_ping_received)) {
         k_sem_take(&m_sem_peripheral_update, K_FOREVER);
     }
+
+    // Use the uptime to provide a semi random seed to the random generator
+    srand(k_uptime_get_32());
+
     printk("Sending reset command to all peripherals\n");
-    for(int p = 0; p < 2; p++) {
-        for(int i = 0; i < player[p].per_num; i++) {
-            game->bt_send(i + player[p].per_index, "RST", 3);
-        }
+    for(int i = 0; i < (player[0].per_num + player[1].per_num); i++) {
+        game->bt_send(i, "RST", 3);
     }
 
     // Starting first round
@@ -132,7 +158,8 @@ static void whackamole_play(struct game_t *game)
             else {
                 player[p].time_until_challenge--;
                 if (player[p].time_until_challenge == 0) {
-                    game->bt_send(player[p].per_index + rand()%player[p].per_num, "CHG", 3);
+                    int random_peripheral_index = player[p].per_index + rand()%player[p].per_num;
+                    send_color_effect(game, random_peripheral_index, '1', &led_effect_challenge);
                 }
             }
         }

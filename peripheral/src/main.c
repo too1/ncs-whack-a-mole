@@ -106,7 +106,6 @@ void bluetooth_callback(app_bt_event_t *event)
 			app_led_blink(LED_COLOR_BLUE, LED_COLOR_BLACK, LED_SPEED_NORMAL);
 			break;
 		case APP_BT_EVT_RX:
-			//printk("Data received: %.*s\n", event->length, event->buf);
 			printk("BT RX:");
 			for(int i = 0; i < event->length; i++) {
 				if(event->buf[i] > 32 && event->buf[i] < 128) printk("0x%.2X '%c' ", event->buf[i], event->buf[i]);

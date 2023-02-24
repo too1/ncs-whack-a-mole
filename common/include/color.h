@@ -29,6 +29,7 @@ typedef enum {LED_EFFECT_PULSE, LED_EFFECT_BLINK} led_effect_type_t;
 
 typedef uint32_t led_color_t;
 
+#define LED_REPEAT_INFINITE 0
 #define LED_EFFECT_CMD_SIZE 14
 
 typedef struct {

@@ -96,8 +96,9 @@ static int led_set_color(led_color_t color)
 
 int app_led_set(led_color_t color)
 {
-	if(led_blink_active) {
+	if(led_blink_active || m_led_effect_status.active) {
 		led_blink_active = false;
+		m_led_effect_status.active = false;
 		k_work_cancel_delayable(&work_led_blink);
 	}
 
@@ -116,6 +117,9 @@ int app_led_set_effect(led_effect_cfg_t *cfg)
 	memcpy(&m_led_effect_status.config, cfg, sizeof(led_effect_cfg_t));
 	m_led_effect_status.runtime = 0;
 	m_led_effect_status.active = true;
+	if(cfg->num_repeats == LED_REPEAT_INFINITE) {
+		m_led_effect_status.infinite = true;
+	}
 	blink_speed_ms = 20;
 	return k_work_schedule(&work_led_blink, K_NO_WAIT);
 }
@@ -133,7 +137,9 @@ static void led_blink_work_handler(struct k_work *work)
 		}
 		led_set_color(new_color);
 		m_led_effect_status.runtime += m_led_effect_status.config.speed;
-		if((m_led_effect_status.runtime / 512) >= m_led_effect_status.config.num_repeats) {
+		
+		// Check if the effect should expire
+		if(!m_led_effect_status.infinite && (m_led_effect_status.runtime / 512) >= m_led_effect_status.config.num_repeats) {
 			led_set_color(m_led_effect_status.config.color_end);
 			m_led_effect_status.active = false;
 			return;
@@ -163,8 +169,9 @@ int app_led_blink(led_color_t c1, led_color_t c2, led_speed_t speed)
 
 int app_led_off(void)
 {
-	if(led_blink_active) {
+	if(led_blink_active || m_led_effect_status.active) {
 		led_blink_active = false;
+		m_led_effect_status.active = false;
 		k_work_cancel_delayable(&work_led_blink);
 	}
 	return led_set_color(LED_COLOR_BLACK);
