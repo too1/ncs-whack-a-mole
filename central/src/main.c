@@ -30,7 +30,14 @@ void on_app_bt_event(struct app_bt_evt_t *event)
 
 void on_game_bt_send(uint32_t con_index, const uint8_t *data, uint16_t len)
 {
-	printk("BT TX (cond index %i): %.*s\n", con_index, len, data);
+#if 0
+	printk("BT TX (cond index %i):", con_index);
+	for(int i = 0; i < len; i++) {
+		if(data[i] > 32 && data[i] < 128) printk("0x%.2X '%c' ", data[i], data[i]);
+		else printk("0x%.2X ", data[i]);
+	} 
+	printk("\n");
+#endif
 	app_bt_send_str(con_index, data, len);
 }
 

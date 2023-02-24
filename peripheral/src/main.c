@@ -106,24 +106,38 @@ void bluetooth_callback(app_bt_event_t *event)
 			app_led_blink(LED_COLOR_BLUE, LED_COLOR_BLACK, LED_SPEED_NORMAL);
 			break;
 		case APP_BT_EVT_RX:
-			printk("Data received: %.*s\n", event->length, event->buf);
-			// Team 1 command
-			if(memcmp(event->buf, "P0", 2) == 0) {
-				app_led_blink(LED_COLOR_RED, LED_COLOR_BLACK, LED_SPEED_NORMAL);
-			}
-			// Team 2 command
-			else if(memcmp(event->buf, "P1", 2) == 0) {
-				app_led_blink(LED_COLOR_GREEN, LED_COLOR_BLACK, LED_SPEED_NORMAL);
+			//printk("Data received: %.*s\n", event->length, event->buf);
+			printk("BT RX:");
+			for(int i = 0; i < event->length; i++) {
+				if(event->buf[i] > 32 && event->buf[i] < 128) printk("0x%.2X '%c' ", event->buf[i], event->buf[i]);
+				else printk("0x%.2X ", event->buf[i]);
+			} 
+			printk("\n");
+			// LED command 
+			// L - Start trial (0/1) - Led mode (P/B) - Color 1 RGB - Color 2 RGB - Color End RGB - Speed - Num repeats (255 - infinite)
+			// 0 - 1                 - 2              - 3 4 5       -  6 7 8      - 9 10 11       - 12    - 13      
+			if(event->buf[0] == 'L' && event->length == 14) {
+				led_effect_cfg_t led_effect;
+				// Check if a new challenge/trial should be started
+				if(event->buf[1] == '1' && !m_trial_data.trial_started) {
+					m_trial_data.trial_started = true;
+					m_trial_data.start_time = k_uptime_get_32();
+				}
+				// Check if we should blink the LED
+				if(event->buf[2] == 'P') {
+					led_effect.type = LED_EFFECT_PULSE;
+					led_effect.color1 = COLOR_FROM_BUF(event->buf, 3);
+					led_effect.color2 = COLOR_FROM_BUF(event->buf, 6);
+					led_effect.color_end = COLOR_FROM_BUF(event->buf, 9);
+					led_effect.speed = event->buf[12];
+					led_effect.num_repeats = event->buf[13];
+					app_led_set_effect(&led_effect);
+				}
 			}
 			// Reset command
 			else if(memcmp(event->buf, "RST", 3) == 0) {
 				app_led_off();
 				m_trial_data.trial_started = false;
-			}
-			else if(!m_trial_data.trial_started) {
-				app_led_set(LED_COLOR_PURPLE);
-				m_trial_data.trial_started = true;
-				m_trial_data.start_time = k_uptime_get_32();
 			}
 			break;
 	}

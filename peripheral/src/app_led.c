@@ -1,25 +1,34 @@
 #include <app_led.h>
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/device.h>
+#include <string.h>
+
+#define RED_LED DT_GPIO_PIN(DT_NODELABEL(led0), gpios)
+#define GREEN_LED DT_GPIO_PIN(DT_NODELABEL(led1), gpios)
+#define BLUE_LED DT_GPIO_PIN(DT_NODELABEL(led2), gpios)
 
 #if defined(CONFIG_BOARD_THINGY52_NRF52832)	
 #include <zephyr/drivers/gpio/gpio_sx1509b.h>
 const struct device *dev_sx1509b;
+static const gpio_pin_t rgb_pins[] = {
+	RED_LED,
+	GREEN_LED,
+	BLUE_LED,
+};
 #else
 #include <zephyr/drivers/pwm.h>
 static const struct pwm_dt_spec pwm_leds[3] = {PWM_DT_SPEC_GET(DT_NODELABEL(pwm_led0)), PWM_DT_SPEC_GET(DT_NODELABEL(pwm_led1)), PWM_DT_SPEC_GET(DT_NODELABEL(pwm_led2))};
 #endif
 
 #define NUMBER_OF_LEDS 3
-#define RED_LED DT_GPIO_PIN(DT_NODELABEL(led0), gpios)
-#define GREEN_LED DT_GPIO_PIN(DT_NODELABEL(led1), gpios)
-#define BLUE_LED DT_GPIO_PIN(DT_NODELABEL(led2), gpios)
 
-static const gpio_pin_t rgb_pins[] = {
-	RED_LED,
-	GREEN_LED,
-	BLUE_LED,
-};
+struct {
+	led_effect_cfg_t config;
+	uint32_t runtime;
+	uint32_t repeats_left;
+	bool 	infinite;
+	bool 	active;
+} m_led_effect_status = {0};
 
 static void led_blink_work_handler(struct k_work *work);
 
@@ -102,11 +111,39 @@ int app_led_toggle(led_color_t color1)
 	return led_set_color(led_on ? color1 : LED_COLOR_BLACK);
 }
 
+int app_led_set_effect(led_effect_cfg_t *cfg)
+{
+	memcpy(&m_led_effect_status.config, cfg, sizeof(led_effect_cfg_t));
+	m_led_effect_status.runtime = 0;
+	m_led_effect_status.active = true;
+	blink_speed_ms = 20;
+	return k_work_schedule(&work_led_blink, K_NO_WAIT);
+}
+
 static void led_blink_work_handler(struct k_work *work)
 {
-	static bool color_select;
-	color_select = !color_select;
-	led_set_color(blink_colors[color_select ? 0 : 1]);
+	if(m_led_effect_status.active) {
+		uint32_t new_color;
+		uint32_t mix_factor = m_led_effect_status.runtime % 512 + 1;
+		if(mix_factor <= 256) {
+			new_color = COLOR_MIX(m_led_effect_status.config.color1, m_led_effect_status.config.color2, mix_factor);
+		}
+		else {
+			new_color = COLOR_MIX(m_led_effect_status.config.color1, m_led_effect_status.config.color2, 512 - mix_factor);
+		}
+		led_set_color(new_color);
+		m_led_effect_status.runtime += m_led_effect_status.config.speed;
+		if((m_led_effect_status.runtime / 512) >= m_led_effect_status.config.num_repeats) {
+			led_set_color(m_led_effect_status.config.color_end);
+			m_led_effect_status.active = false;
+			return;
+		}
+	}
+	else {
+		static bool color_select;
+		color_select = !color_select;
+		led_set_color(blink_colors[color_select ? 0 : 1]);
+	}
 	k_work_schedule(k_work_delayable_from_work(work), K_MSEC(blink_speed_ms));
 }
 

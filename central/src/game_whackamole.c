@@ -11,11 +11,17 @@ K_SEM_DEFINE(m_sem_second_tick, 0, 1);
 int num_players;
 bool ping_received;
 
+const led_effect_cfg_t led_effect_1 =  {.color1 = LED_COLOR_GREEN, 
+                                        .color2 = LED_COLOR_RED,
+                                        .color_end = LED_COLOR_BLACK,
+                                        .speed = 2,
+                                        .num_repeats = 3};
 struct whackamole_t {
     int round_duration_s;
     int time;
     int challenge_int_min, challenge_int_range;
 } whackamole;
+
 struct player_t {
     uint32_t per_index;
     uint32_t per_num;
@@ -29,6 +35,13 @@ void game_timer_func(struct k_timer *timer_id);
 
 K_TIMER_DEFINE(m_timer_game, game_timer_func, NULL);
 
+static void send_color_effect(struct game_t *game, uint32_t per_index, const led_effect_cfg_t *effect)
+{
+    static uint8_t led_effect_cmd[LED_EFFECT_CMD_SIZE];
+    led_effect_to_cmd(effect, '0', led_effect_cmd);
+    game->bt_send(per_index, led_effect_cmd, LED_EFFECT_CMD_SIZE);
+}
+
 void whackamole_bt_rx(struct game_t *game, struct app_bt_evt_t *bt_evt)
 {
     int player_index = (bt_evt->con_index < player[1].per_index) ? 0 : 1;
@@ -39,8 +52,9 @@ void whackamole_bt_rx(struct game_t *game, struct app_bt_evt_t *bt_evt)
             break;
         case APP_BT_EVT_RX_DATA:
             if (memcmp(bt_evt->data, "PING", 4) == 0) {
-                ping_received = true;
-                player[player_index].player_ping_received = true;
+                //ping_received = true;
+                //player[player_index].player_ping_received = true;
+                send_color_effect(game, bt_evt->con_index, &led_effect_1);
             }
             else if (memcmp(bt_evt->data, "TD:", 3) == 0 && bt_evt->data_len >= 9) {
                 uint32_t response_time = 0;

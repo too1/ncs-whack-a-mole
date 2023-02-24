@@ -8,7 +8,8 @@ target_sources(app PRIVATE
   src/main.c
   src/app_bt.c
   src/game_whackamole.c
+  ../common/src/color.c
 )
-target_include_directories(app PRIVATE src)
+target_include_directories(app PRIVATE src ../common/include)
 
 zephyr_library_include_directories(${ZEPHYR_BASE}/samples/bluetooth)

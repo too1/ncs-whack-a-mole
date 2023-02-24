@@ -8,4 +8,4 @@ target_sources(app PRIVATE src/main.c
 						   src/app_sensors.c 
 						   src/app_bt.c
 						   src/app_led.c)
-target_include_directories(app PRIVATE include)
+target_include_directories(app PRIVATE include ../common/include)
