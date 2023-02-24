@@ -61,7 +61,7 @@ static void whackamole_play(struct game_t *game)
     printk("Welcome to Whack-A-Mole. The most exiting game in the world!!!\n");
     printk("Waiting for peripherals to connect...\n");
     
-    whackamole.round_duration_s = 60;
+    whackamole.round_duration_s = 180;
     whackamole.time = 0;
     whackamole.challenge_int_min = 5;
     whackamole.challenge_int_range = 20;

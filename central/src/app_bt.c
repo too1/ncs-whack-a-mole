@@ -11,7 +11,6 @@
 #include <zephyr/types.h>
 #include <stddef.h>
 #include <errno.h>
-#include <zephyr/sys/printk.h>
 
 #include <zephyr/bluetooth/bluetooth.h>
 #include <zephyr/bluetooth/hci.h>
@@ -21,6 +20,9 @@
 #include <bluetooth/services/nus.h>
 #include <bluetooth/services/nus_client.h>
 #include <zephyr/sys/byteorder.h>
+#include <zephyr/logging/log.h>
+
+LOG_MODULE_REGISTER(app_bt, LOG_LEVEL_ERR);
 
 #define SCAN_INTERVAL 0x00A0 /* 160 ms */
 #define SCAN_WINDOW   0x0030 /* 30 ms */
@@ -103,7 +105,7 @@ static void fwd_event_rx_data(uint32_t con_index, const uint8_t *data, uint16_t 
 static bool target_adv_name_found(struct bt_data *data, void *user_data)
 {
 	if (data->type == BT_DATA_NAME_COMPLETE) {
-		//printk("Dev with name found: %.*s\n", data->data_len, data->data);
+		//LOG_INF("Dev with name found: %.*s", data->data_len, data->data);
 		if(memcmp(data->data, adv_target_name, strlen(adv_target_name)) == 0) {
 			adv_target_name_found = true;
 		}
@@ -144,7 +146,7 @@ static void device_found(const bt_addr_le_t *addr, int8_t rssi, uint8_t type,
 	}
 
 	bt_addr_le_to_str(addr, addr_str, sizeof(addr_str));
-	//printk("Device found: %s (RSSI %d)\n", addr_str, rssi);
+	//LOG_INF("Device found: %s (RSSI %d)", addr_str, rssi);
 
 	// Look for the target device name in the advertise payload, and return if it is not found
 	adv_target_name_found = false;
@@ -154,14 +156,14 @@ static void device_found(const bt_addr_le_t *addr, int8_t rssi, uint8_t type,
 	}
 
 	if (bt_le_scan_stop()) {
-		printk("Scanning successfully stopped\n");
+		LOG_INF("Scanning successfully stopped");
 		return;
 	}
 
 	err = bt_conn_le_create(addr, &create_param, &conn_param,
 				&conn_connecting);
 	if (err) {
-		printk("Create conn to %s failed (%d)\n", addr_str, err);
+		LOG_WRN("Create conn to %s failed (%d)", addr_str, err);
 		start_scan();
 	}
 }
@@ -178,22 +180,19 @@ static void start_scan(void)
 
 	err = bt_le_scan_start(&scan_param, device_found);
 	if (err) {
-		printk("Scanning failed to start (err %d)\n", err);
+		LOG_ERR("Scanning failed to start (err %d)", err);
 		return;
 	}
-//#ifndef LOG_DISABLE
-	printk("Scanning successfully started\n");
-//#endif
+
+	LOG_INF("Scanning successfully started");
 }
 
 #if defined(CONFIG_BT_GATT_CLIENT)
 static void mtu_exchange_cb(struct bt_conn *conn, uint8_t err,
 			    struct bt_gatt_exchange_params *params)
 {
-//#ifndef LOG_DISABLE
-	printk("MTU exchange %u %s (%u)\n", bt_conn_index(conn),
+	LOG_INF("MTU exchange %u %s (%u)", bt_conn_index(conn),
 	       err == 0U ? "successful" : "failed", bt_gatt_get_mtu(conn));
-//#endif
 	struct per_context_t *peripheral = get_per_context_from_conn(conn);
 	gatt_discover(conn, &peripheral->nus_client);
 }
@@ -207,19 +206,15 @@ static int mtu_exchange(struct bt_conn *conn)
 
 	conn_index = bt_conn_index(conn);
 
-#ifndef LOG_DISABLE
-	printk("MTU (%u): %u\n", conn_index, bt_gatt_get_mtu(conn));
-#endif 
+	LOG_INF("MTU (%u): %u", conn_index, bt_gatt_get_mtu(conn));
 
 	mtu_exchange_params[conn_index].func = mtu_exchange_cb;
 
 	err = bt_gatt_exchange_mtu(conn, &mtu_exchange_params[conn_index]);
 	if (err) {
-		printk("MTU exchange failed (err %d)", err);
+		LOG_ERR("MTU exchange failed (err %d)", err);
 	} else {
-#ifndef LOG_DISABLE
-		printk("Exchange pending...");
-#endif
+		LOG_DBG("Exchange pending...");
 	}
 
 	return err;
@@ -230,9 +225,8 @@ static void discovery_complete(struct bt_gatt_dm *dm,
 			       void *context)
 {
 	struct bt_nus_client *nus = context;
-#ifndef LOG_DISABLE
-	printk("Service discovery completed\n");
-#endif
+
+	LOG_INF("Service discovery completed");
 
 	bt_gatt_dm_data_print(dm);
 
@@ -253,14 +247,14 @@ static void discovery_complete(struct bt_gatt_dm *dm,
 static void discovery_service_not_found(struct bt_conn *conn,
 					void *context)
 {
-	printk("Service not found!\n");
+	LOG_WRN("Service not found!");
 }
 
 static void discovery_error(struct bt_conn *conn,
 			    int err,
 			    void *context)
 {
-	printk("Error while discovering GATT database: (%d)\n", err);
+	LOG_ERR("Error while discovering GATT database: (%d)", err);
 }
 
 struct bt_gatt_dm_cb discovery_cb = {
@@ -282,7 +276,7 @@ static void gatt_discover(struct bt_conn *conn, struct bt_nus_client *nus_client
 			       &discovery_cb,
 			       nus_client);
 	if (err) {
-		printk("could not start the discovery procedure, error code: %d\n", err);
+		LOG_ERR("could not start the discovery procedure, error code: %d", err);
 		start_scan();
 	}
 }
@@ -294,7 +288,7 @@ static void connected(struct bt_conn *conn, uint8_t reason)
 	bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
 
 	if (reason) {
-		printk("Failed to connect to %s (%u)\n", addr, reason);
+		LOG_ERR("Failed to connect to %s (%u)", addr, reason);
 
 		bt_conn_unref(conn_connecting);
 		conn_connecting = NULL;
@@ -316,15 +310,14 @@ static void connected(struct bt_conn *conn, uint8_t reason)
 		peripheral->conn = conn;
 		peripheral->ready = false;
 	}
-#ifndef LOG_DISABLE
-	printk("Connected (%u): %s\n", conn_count, addr);
-#endif
+
+	LOG_DBG("Connected (%u): %s", conn_count, addr);
 
 #if defined(CONFIG_BT_SMP)
 	int err = bt_conn_set_security(conn, BT_SECURITY_L2);
 
 	if (err) {
-		printk("Failed to set security (%d).\n", err);
+		LOG_ERR("Failed to set security (%d).", err);
 	}
 #endif
 
@@ -351,9 +344,8 @@ static void disconnected(struct bt_conn *conn, uint8_t reason)
 		start_scan();
 	}
 	conn_count--;
-#ifndef LOG_DISABLE
-	printk("Disconnected (count %i): %s (reason 0x%02x)\n", conn_count, addr, reason);
-#endif
+
+	LOG_INF("Disconnected (count %i): %s (reason 0x%02x)", conn_count, addr, reason);
 
 	fwd_event_con_num_change(conn_count);
 }
@@ -364,11 +356,9 @@ static bool le_param_req(struct bt_conn *conn, struct bt_le_conn_param *param)
 
 	bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
 
-#ifndef LOG_DISABLE
-	printk("LE conn param req: %s int (0x%04x, 0x%04x) lat %d to %d\n",
+	LOG_DBG("LE conn param req: %s int (0x%04x, 0x%04x) lat %d to %d",
 	       addr, param->interval_min, param->interval_max, param->latency,
 	       param->timeout);
-#endif 
 
 	return true;
 }
@@ -379,10 +369,9 @@ static void le_param_updated(struct bt_conn *conn, uint16_t interval,
 	char addr[BT_ADDR_LE_STR_LEN];
 
 	bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
-#ifndef LOG_DISABLE
-	printk("LE conn param updated: %s int 0x%04x lat %d to %d\n",
+
+	LOG_DBG("LE conn param updated: %s int 0x%04x lat %d to %d",
 	       addr, interval, latency, timeout);
-#endif
 }
 
 #if defined(CONFIG_BT_SMP)
@@ -394,9 +383,9 @@ static void security_changed(struct bt_conn *conn, bt_security_t level,
 	bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
 
 	if (!err) {
-		printk("Security changed: %s level %u\n", addr, level);
+		LOG_INF("Security changed: %s level %u", addr, level);
 	} else {
-		printk("Security failed: %s level %u err %d\n", addr, level,
+		LOG_ERR("Security failed: %s level %u err %d", addr, level,
 		       err);
 	}
 }
@@ -410,7 +399,7 @@ static void le_phy_updated(struct bt_conn *conn,
 
 	bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
 
-	printk("LE PHY Updated: %s Tx 0x%x, Rx 0x%x\n", addr, param->tx_phy,
+	LOG_INF("LE PHY Updated: %s Tx 0x%x, Rx 0x%x", addr, param->tx_phy,
 	       param->rx_phy);
 }
 #endif /* CONFIG_BT_USER_PHY_UPDATE */
@@ -423,7 +412,7 @@ static void le_data_len_updated(struct bt_conn *conn,
 
 	bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
 
-	printk("Data length updated: %s max tx %u (%u us) max rx %u (%u us)\n",
+	LOG_INF("Data length updated: %s max tx %u (%u us) max rx %u (%u us)",
 	       addr, info->tx_max_len, info->tx_max_time, info->rx_max_len,
 	       info->rx_max_time);
 }
@@ -455,18 +444,19 @@ static void disconnect(struct bt_conn *conn, void *data)
 
 	bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
 
-	printk("Disconnecting %s...\n", addr);
 	err = bt_conn_disconnect(conn, BT_HCI_ERR_REMOTE_USER_TERM_CONN);
 	if (err) {
-		printk("Failed disconnection %s.\n", addr);
+		LOG_ERR("Failed disconnection %s.", addr);
 	}
-	printk("success.\n");
+	else {
+		LOG_DBG("Disconnecting %s... success.", addr);
+	}
 }
 
 static uint8_t nus_data_received(struct bt_nus_client *nus, const uint8_t *data, uint16_t len)
 {
 	struct per_context_t *peripheral = get_per_context_from_client(nus);
-	printk("BT RX (con ind %i): %.*s\n", peripheral->index, len, data);
+	LOG_INF("BT RX (con ind %i): %.*s", peripheral->index, len, data);
 	fwd_event_rx_data(peripheral->index, data, len);
 	return BT_GATT_ITER_CONTINUE;
 }
@@ -482,13 +472,13 @@ int app_bt_init(app_bt_callback_t callback)
 
 	err = bt_enable(NULL);
 	if (err) {
-		printk("Bluetooth init failed (err %d)\n", err);
+		LOG_ERR("Bluetooth init failed (err %d)", err);
 		return err;
 	}
 
 	m_callback = callback;
 
-	printk("Bluetooth initialized\n");
+	LOG_INF("Bluetooth initialized");
 
 	struct bt_nus_client_init_param init = {
 		.cb = {
@@ -501,7 +491,7 @@ int app_bt_init(app_bt_callback_t callback)
 		per_context[i].index = i;
 		err = bt_nus_client_init(&(per_context[i].nus_client), &init);
 		if (err) {
-			printk("NUS Client initialization failed (err %d)\n", err);
+			LOG_ERR("NUS Client initialization failed (err %d)", err);
 			return err;
 		}
 	}
@@ -522,7 +512,7 @@ int app_bt_send_str(uint32_t con_index, const uint8_t *string, uint16_t len)
 	if (per_context[con_index].ready) {
 		ret = bt_nus_client_send(&(per_context[con_index].nus_client), string, len);
 		if (ret < 0) {
-			printk("ERROR sending to client %i: %i\n", con_index, ret);
+			LOG_ERR("ERROR sending to client %i: %i", con_index, ret);
 			return ret;
 		}
 	}
@@ -532,13 +522,13 @@ int app_bt_send_str(uint32_t con_index, const uint8_t *string, uint16_t len)
 
 void app_bt_disconnect_all(void)
 {
-	printk("Disconnecting all...\n");
+	LOG_DBG("Disconnecting all...");
 	is_disconnecting = true;
 	bt_conn_foreach(BT_CONN_TYPE_LE, disconnect, NULL);
 
 	while (is_disconnecting) {
 		k_sleep(K_MSEC(10));
 	}
-	printk("All disconnected.\n");
+	LOG_DBG("All disconnected.");
 }
 
