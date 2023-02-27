@@ -26,6 +26,9 @@ static struct {
 	uint32_t time; 
 } m_trial_data = {0};
 
+void challenge_timeout_func(struct k_timer *timer_id); 
+K_TIMER_DEFINE(m_timer_challenge_timeout, challenge_timeout_func, NULL);
+
 void trial_done_func(struct k_work *work)
 {
 	static uint8_t rsp_string[32];
@@ -35,12 +38,19 @@ void trial_done_func(struct k_work *work)
 	app_bt_send(rsp_string, strlen(rsp_string));
 }
 
+void trial_timeout_func(struct k_work *work)
+{
+	app_led_set(LED_COLOR_BLACK);
+	app_bt_send("TO", 2);
+}
+
 void send_ping_func(struct k_work *work)
 {
 	app_bt_send("PING", 4);
 }
 
 K_WORK_DEFINE(m_work_trial_done, trial_done_func);
+K_WORK_DEFINE(m_work_trial_timeout, trial_timeout_func);
 K_WORK_DEFINE(m_work_send_ping, send_ping_func);
 
 void on_button_pressed(const struct device *port, struct gpio_callback *cb, gpio_port_pins_t pins)
@@ -52,6 +62,14 @@ void on_button_pressed(const struct device *port, struct gpio_callback *cb, gpio
 	}
 	else {
 		k_work_submit(&m_work_send_ping);
+	}
+}
+
+void challenge_timeout_func(struct k_timer *timer_id)
+{
+	if (m_trial_data.trial_started) {
+		m_trial_data.trial_started = false;
+		k_work_submit(&m_work_trial_timeout);
 	}
 }
 
@@ -106,21 +124,31 @@ void bluetooth_callback(app_bt_event_t *event)
 			app_led_blink(LED_COLOR_BLUE, LED_COLOR_BLACK, 250);
 			break;
 		case APP_BT_EVT_RX:
+#if 0
 			printk("BT RX:");
 			for(int i = 0; i < event->length; i++) {
 				if(event->buf[i] > 32 && event->buf[i] < 128) printk("0x%.2X '%c' ", event->buf[i], event->buf[i]);
 				else printk("0x%.2X ", event->buf[i]);
 			} 
 			printk("\n");
+#endif
 			// LED command 
 			// L - Start trial (0/1) - Led mode (P/B) - Color 1 RGB - Color 2 RGB - Color End RGB - Speed - Num repeats (255 - infinite)
 			// 0 - 1                 - 2              - 3 4 5       -  6 7 8      - 9 10 11       - 12    - 13      
-			if(event->buf[0] == 'L' && event->length == 14) {
+			if(event->buf[0] == 'L' && event->length >= 14) {
 				led_effect_cfg_t led_effect;
 				// Check if a new challenge/trial should be started
 				if(event->buf[1] == '1' && !m_trial_data.trial_started) {
 					m_trial_data.trial_started = true;
 					m_trial_data.start_time = k_uptime_get_32();
+				}
+				// Check if a new challenge/trial with timeout should be started
+				else if(event->buf[1] == '2' && !m_trial_data.trial_started && event->length >= 16) {
+					m_trial_data.trial_started = true;
+					m_trial_data.start_time = k_uptime_get_32();
+
+					uint16_t timeout_ms = (uint16_t)event->buf[14] << 8 | (uint16_t)event->buf[15];
+					k_timer_start(&m_timer_challenge_timeout, K_MSEC(timeout_ms), K_MSEC(0));
 				}
 				// Check if we should blink the LED
 				if(event->buf[2] == 'P') {

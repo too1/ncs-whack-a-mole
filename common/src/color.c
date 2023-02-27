@@ -11,3 +11,10 @@ void led_effect_to_cmd(const led_effect_cfg_t *cfg, uint8_t sub_cmd, uint8_t *cm
     cmd_buf[12] = cfg->speed;
     cmd_buf[13] = cfg->num_repeats;
 }
+
+void led_effect_to_cmd_to(const led_effect_cfg_t *cfg, uint8_t sub_cmd, uint8_t *cmd_buf, uint16_t timeout)
+{
+    led_effect_to_cmd(cfg, sub_cmd, cmd_buf);
+    cmd_buf[14] = (uint8_t)(timeout >> 8);
+    cmd_buf[15] = (uint8_t)timeout;
+}
