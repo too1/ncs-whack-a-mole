@@ -103,7 +103,7 @@ void bluetooth_callback(app_bt_event_t *event)
 			break;
 		case APP_BT_EVT_DISCONNECTED:
 			printk("Bluetooth disconnected\n");
-			app_led_blink(LED_COLOR_BLUE, LED_COLOR_BLACK, LED_SPEED_NORMAL);
+			app_led_blink(LED_COLOR_BLUE, LED_COLOR_BLACK, 250);
 			break;
 		case APP_BT_EVT_RX:
 			printk("BT RX:");
@@ -168,7 +168,7 @@ void main(void)
 	
 	printk("Basic Thingy52 sensor sample\n");
 
-	app_led_blink(LED_COLOR_BLUE, LED_COLOR_BLACK, LED_SPEED_NORMAL);
+	app_led_blink(LED_COLOR_BLUE, LED_COLOR_BLACK, 250);
 
 	while (1) {
 		k_msleep(SLEEP_TIME_MS);
