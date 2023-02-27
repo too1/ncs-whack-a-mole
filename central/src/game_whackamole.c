@@ -5,7 +5,7 @@
 #define CHALLENGE_NUM_MAX 32
 
 #define COLOR_PLAYER1       0x33FF11
-#define COLOR_PLAYER2       0x2299EE
+#define COLOR_PLAYER2       0x1166FF
 
 K_SEM_DEFINE(m_sem_num_players_update, 0, 1);
 K_SEM_DEFINE(m_sem_peripheral_update, 0, 1);
@@ -22,14 +22,19 @@ const led_effect_cfg_t led_effect_p2_select = {.color1 = COLOR_PLAYER2, .color2 
 const led_effect_cfg_t led_effect_challenge = {.color1 = LED_COLOR_PURPLE, .color2 = LED_COLOR_ORANGE, .color_end = LED_COLOR_BLACK,
                                                .speed = 45, .num_repeats = LED_REPEAT_INFINITE};
 const led_effect_cfg_t led_effect_result_good = {.color1 = LED_COLOR_GREEN, .color2 = LED_COLOR_BLACK, .color_end = LED_COLOR_BLACK,
-                                               .speed = 60, .num_repeats = 40};
+                                               .speed = 60, .num_repeats = 4};
 const led_effect_cfg_t led_effect_result_bad = {.color1 = LED_COLOR_RED, .color2 = LED_COLOR_BLACK, .color_end = LED_COLOR_BLACK,
-                                               .speed = 60, .num_repeats = 40};
+                                               .speed = 60, .num_repeats = 4};
+const led_effect_cfg_t led_effect_result_win  = {.color1 = LED_COLOR_GREEN, .color2 = LED_COLOR_BLACK, .color_end = LED_COLOR_BLACK,
+                                               .speed = 30, .num_repeats = LED_REPEAT_INFINITE};
+const led_effect_cfg_t led_effect_result_lose = {.color1 = LED_COLOR_RED, .color2 = LED_COLOR_BLACK, .color_end = LED_COLOR_BLACK,
+                                               .speed = 8, .num_repeats = LED_REPEAT_INFINITE};
 
 struct whackamole_t {
     int round_duration_s;
     int time;
     int challenge_int_min, challenge_int_range;
+    int chg_rsp_total, chg_rsp_counter;
 } whackamole;
 
 struct player_t {
@@ -39,6 +44,7 @@ struct player_t {
     int time_until_challenge;
     uint32_t challenge_response_time_list[CHALLENGE_NUM_MAX];
     uint32_t challenge_counter;
+    uint32_t challenge_average;
 } player[2];
 
 void game_timer_func(struct k_timer *timer_id); 
@@ -91,6 +97,15 @@ void whackamole_bt_rx(struct game_t *game, struct app_bt_evt_t *bt_evt)
                 }
                 if (player[player_index].challenge_counter < CHALLENGE_NUM_MAX) {
                     player[player_index].challenge_response_time_list[player[player_index].challenge_counter++] = response_time;
+
+                    whackamole.chg_rsp_total += response_time;
+                    whackamole.chg_rsp_counter++;
+                    if(whackamole.chg_rsp_counter == 1 || (whackamole.chg_rsp_total / whackamole.chg_rsp_counter) > response_time) {
+                        send_color_effect(game, PER_INDEX_ALL_P1 + player_index, '0', &led_effect_result_good);
+                    }
+                    else {
+                        send_color_effect(game, PER_INDEX_ALL_P1 + player_index, '0', &led_effect_result_bad);
+                    }
                 }
             }
             k_sem_give(&m_sem_peripheral_update);
@@ -106,7 +121,8 @@ static void whackamole_play(struct game_t *game)
     whackamole.round_duration_s = 60;
     whackamole.time = 0;
     whackamole.challenge_int_min = 2;
-    whackamole.challenge_int_range = 14;
+    whackamole.challenge_int_range = 10;
+    whackamole.chg_rsp_total = whackamole.chg_rsp_counter = 0;
 
     // Waiting for players to connect
     ping_received = false;
@@ -181,11 +197,24 @@ static void whackamole_play(struct game_t *game)
             }
             printk("  Best result:  %i ms\n", min);
             printk("  Worst result: %i ms\n", max);
-            printk("  Average:      %i ms\n", total / player[p].challenge_counter);
+            player[p].challenge_average = total / player[p].challenge_counter;
+            printk("  Average:      %i ms\n", player[p].challenge_average);
         }
         else {
             printk("\nNo results for player %i\n",p);
         }
+    }
+
+    // Show which player has won by making the peripherals go green or red
+    if (player[0].challenge_average < player[1].challenge_average) {
+        // Player 0 won!
+        send_color_effect(game, PER_INDEX_ALL_P1, '0', &led_effect_result_win);
+        send_color_effect(game, PER_INDEX_ALL_P2, '0', &led_effect_result_lose);
+    }
+    else {
+        // Player 1 won!
+        send_color_effect(game, PER_INDEX_ALL_P1, '0', &led_effect_result_lose);
+        send_color_effect(game, PER_INDEX_ALL_P2, '0', &led_effect_result_win);
     }
 }
 
