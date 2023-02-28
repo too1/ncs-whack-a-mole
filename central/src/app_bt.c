@@ -460,10 +460,10 @@ static uint8_t nus_data_received(struct bt_nus_client *nus, const uint8_t *data,
 	fwd_event_rx_data(peripheral->index, data, len);
 	return BT_GATT_ITER_CONTINUE;
 }
-
+static volatile int packets_queued = 0;
 static void nus_data_sent(struct bt_nus_client *nus, uint8_t err, const uint8_t *const data, uint16_t len)
 {
-
+	packets_queued--;
 }
 
 int app_bt_init(app_bt_callback_t callback)
@@ -512,9 +512,10 @@ int app_bt_send_str(uint32_t con_index, const uint8_t *string, uint16_t len)
 	if (per_context[con_index].ready) {
 		ret = bt_nus_client_send(&(per_context[con_index].nus_client), string, len);
 		if (ret < 0) {
-			LOG_ERR("ERROR sending to client %i: %i", con_index, ret);
+			LOG_ERR("ERROR sending to client %i: %i. PQ %i", con_index, ret, packets_queued);
 			return ret;
 		}
+		packets_queued++;
 	}
 	else return -EBUSY;
 	return 0;

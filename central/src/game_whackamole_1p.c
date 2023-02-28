@@ -16,9 +16,9 @@ bool ping_received;
 const led_effect_cfg_t led_effect_challenge = {.color1 = LED_COLOR_PURPLE, .color2 = LED_COLOR_ORANGE, .color_end = LED_COLOR_BLACK,
                                                .speed = 45, .num_repeats = LED_REPEAT_INFINITE};
 const led_effect_cfg_t led_effect_result_good = {.color1 = LED_COLOR_GREEN, .color2 = LED_COLOR_BLACK, .color_end = LED_COLOR_BLACK,
-                                               .speed = 60, .num_repeats = 4};
+                                               .speed = 60, .num_repeats = 3};
 const led_effect_cfg_t led_effect_result_bad = {.color1 = LED_COLOR_RED, .color2 = LED_COLOR_BLACK, .color_end = LED_COLOR_BLACK,
-                                               .speed = 60, .num_repeats = 4};
+                                               .speed = 60, .num_repeats = 3};
 const led_effect_cfg_t led_effect_result_win  = {.color1 = LED_COLOR_GREEN, .color2 = LED_COLOR_BLACK, .color_end = LED_COLOR_BLACK,
                                                .speed = 30, .num_repeats = LED_REPEAT_INFINITE};
 const led_effect_cfg_t led_effect_result_lose = {.color1 = LED_COLOR_RED, .color2 = LED_COLOR_BLACK, .color_end = LED_COLOR_BLACK,
@@ -139,29 +139,23 @@ void whackamole_bt_rx(struct game_t *game, struct app_bt_evt_t *bt_evt)
 				console_print_progress = -1;
 				challenge_pending = false;
 				//printk("Received from index %i, expected %i\n", bt_evt->con_index, player[0].chg_per_index);
-				// Check if the right button was pressed
-				//if(bt_evt->con_index == player[0].chg_per_index) {
-					if(response_time < whackamole.target_pr_round[whackamole.current_round]) {
-						challenge_finalize(game, response_time, true, pad_spaces_to_print);
-					}
-					else {
-						challenge_finalize(game, response_time, false, pad_spaces_to_print);
-					}
-					// Add the response time to the list
-					if (player[0].challenge_counter < CHALLENGE_NUM_MAX) {
-                    	player[0].challenge_response_time_list[player[0].challenge_counter++] = response_time;
 
-                    	whackamole.chg_rsp_total += response_time;
-                    	whackamole.chg_rsp_counter++;
-                	}
-					// Clear the challenge peripheral index to avoid double presses giving double points
-					player[0].chg_per_index = -1;
-				/*} 
+				if(response_time < whackamole.target_pr_round[whackamole.current_round]) {
+					challenge_finalize(game, response_time, true, pad_spaces_to_print);
+				}
 				else {
-					// Player pressed the wrong button. Subtract one point!
-					player[0].score--;
-					printk("Maybe wrong button pressed! -1 point. Total score %i\n", player[0].score);
-				}*/
+					challenge_finalize(game, response_time, false, pad_spaces_to_print);
+				}
+
+				// Add the response time to the list
+				if (player[0].challenge_counter < CHALLENGE_NUM_MAX) {
+					player[0].challenge_response_time_list[player[0].challenge_counter++] = response_time;
+
+					whackamole.chg_rsp_total += response_time;
+					whackamole.chg_rsp_counter++;
+				}
+				// Clear the challenge peripheral index to avoid double presses giving double points
+				player[0].chg_per_index = -1;
             }
 			else if (memcmp(bt_evt->data, "TO", 2) == 0) {
 				// Challenge timed out
@@ -180,7 +174,9 @@ void whackamole_bt_rx(struct game_t *game, struct app_bt_evt_t *bt_evt)
 
 static void whackamole_play(struct game_t *game)
 {
-    printk("Welcome to Whack-A-Mole! The most exiting Bluetooth game in the world!!!\n");
+	k_msleep(1000);
+    
+	printk("Welcome to Whack-A-Mole! The most exiting Bluetooth game in the world!!!\n");
     printk("Waiting for peripherals to connect...\n");
     
 	whackamole.target_pr_round[0] = 1200;
@@ -201,7 +197,7 @@ static void whackamole_play(struct game_t *game)
 		ping_received = false;
 		while (num_players < 1 || !ping_received) {
 			if (k_sem_take(&m_sem_num_players_update, K_MSEC(100)) == 0) {
-				printk("Controllers connected: %i\n", num_players);
+				printk("\rControllers connected: %i   ", num_players);
 			}
 		}
 
@@ -214,7 +210,7 @@ static void whackamole_play(struct game_t *game)
 		// Use the uptime to provide a semi random seed to the random generator
 		srand(k_uptime_get_32());
 
-		printk("Starting new game\n");
+		printk("\n\nStarting new game\n");
 		for(int i = 0; i < player[0].per_num; i++) {
 			game->bt_send(i, "RST", 3);
 		}
@@ -228,7 +224,7 @@ static void whackamole_play(struct game_t *game)
 
 		for(whackamole.current_round = 0; whackamole.current_round < MAX_ROUNDS; whackamole.current_round++) {
 			uint32_t target_time = whackamole.target_pr_round[whackamole.current_round];
-			k_msleep(1000);
+			k_msleep(750);
 			
 			printk("\nRound %i starting... Respond quicker than %i ms!\n", (whackamole.current_round + 1), target_time);
 			send_color_effect(game, PER_INDEX_ALL, '0', &led_effect_new_round, 0);
@@ -237,7 +233,7 @@ static void whackamole_play(struct game_t *game)
 			for (int i = 0; i < (console_print_goal_line_index - 1); i++) printk(" ");
 			printk("|\n");
 
-			k_msleep(1000);
+			k_msleep(750);
 			
 			whackamole.time = 0;
 			whackamole.time_until_challenge = 20;
@@ -251,7 +247,7 @@ static void whackamole_play(struct game_t *game)
 					challenge_pending = true;
 					send_color_effect(game, random_peripheral_index, '2', &led_effect_challenge, target_time + TIMEOUT_BUFFER_MS);
 					console_print_progress = true;
-					whackamole.time_until_challenge = whackamole.time + (target_time + TIMEOUT_BUFFER_MS) / TICKS_PR_SEC + rand() % whackamole.challenge_int_range;
+					whackamole.time_until_challenge = whackamole.time + target_time / TICKS_PR_SEC + rand() % whackamole.challenge_int_range;
 				}
 			} while(whackamole.time < whackamole.round_duration_s || challenge_pending);
 		}
