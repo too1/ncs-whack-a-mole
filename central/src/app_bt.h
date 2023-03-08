@@ -2,9 +2,10 @@
 #define __APP_BT_H
 
 #include <zephyr/kernel.h>
+#include <zephyr/bluetooth/conn.h>
 #include <color.h>
 
-enum {APP_BT_EVT_CON_NUM_CHANGE, APP_BT_EVT_RX_DATA};
+enum {APP_BT_EVT_CON_NUM_CHANGE, APP_BT_EVT_RX_DATA, APP_BT_EVT_PER_CONNECTED, APP_BT_EVT_PER_DISCONNECTED};
 
 struct app_bt_evt_t {
     uint32_t type;
@@ -12,6 +13,7 @@ struct app_bt_evt_t {
     const uint8_t *data;
     uint16_t data_len;
     uint32_t con_index;
+	struct bt_conn *per_conn;
 };
 
 typedef void (*app_bt_callback_t)(struct app_bt_evt_t *event);

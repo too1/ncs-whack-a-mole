@@ -8,6 +8,7 @@
 
 #include <stdint.h>
 #include <app_bt.h>
+#include <app_bt_per.h>
 #include <dk_buttons_and_leds.h>
 #include <game_whackamole.h>
 
@@ -23,9 +24,28 @@ static void button_changed(uint32_t button_state, uint32_t has_changed)
 	}
 }
 
+void on_app_bt_per_event(struct app_bt_per_evt_t *event)
+{
+
+}
+
 void on_app_bt_event(struct app_bt_evt_t *event)
 {
-	mygame.bt_rx(&mygame, event);
+	switch(event->type) {
+		case APP_BT_EVT_CON_NUM_CHANGE:
+			mygame.bt_rx(&mygame, event);
+			break; 
+		case APP_BT_EVT_RX_DATA:
+			mygame.bt_rx(&mygame, event);
+			app_bt_per_send_str(event->data, event->data_len);
+			break;
+		case APP_BT_EVT_PER_CONNECTED:
+			app_bt_per_connected(event->per_conn);
+			break;
+		case APP_BT_EVT_PER_DISCONNECTED:
+			app_bt_per_disconnected(event->per_conn);
+			break; 			
+	}
 }
 
 void on_game_bt_send(uint32_t con_index, const uint8_t *data, uint16_t len)
@@ -39,6 +59,7 @@ void on_game_bt_send(uint32_t con_index, const uint8_t *data, uint16_t len)
 	printk("\n");
 #endif
 	app_bt_send_str(con_index, data, len);
+	app_bt_per_send_str(data, len);
 }
 
 void main(void)
@@ -54,6 +75,12 @@ void main(void)
 	ret = app_bt_init(on_app_bt_event);
 	if (ret < 0) {
 		printk("BT init failed!\n");
+		return;
+	}
+
+	ret = app_bt_per_init(on_app_bt_per_event);
+	if (ret < 0) {
+		printk("BT Peripheral init failed!\n");
 		return;
 	}
 

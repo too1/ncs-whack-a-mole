@@ -22,7 +22,7 @@
 #include <zephyr/sys/byteorder.h>
 #include <zephyr/logging/log.h>
 
-LOG_MODULE_REGISTER(app_bt, LOG_LEVEL_ERR);
+LOG_MODULE_REGISTER(app_bt, LOG_LEVEL_DBG);
 
 #define SCAN_INTERVAL 0x00A0 /* 160 ms */
 #define SCAN_WINDOW   0x0030 /* 30 ms */
@@ -44,6 +44,7 @@ static void gatt_discover(struct bt_conn *conn, struct bt_nus_client *nus_client
 static app_bt_callback_t m_callback;
 
 static struct bt_conn *conn_connecting;
+static struct bt_conn_info conn_info;
 static uint8_t volatile conn_count;
 static bool volatile is_disconnecting;
 
@@ -100,6 +101,14 @@ static void fwd_event_rx_data(uint32_t con_index, const uint8_t *data, uint16_t 
 	rx_evt.data = data;
 	rx_evt.data_len = len;
 	m_callback(&rx_evt);
+}
+
+static void fwd_event_per_link_con_discon(struct bt_conn *conn, bool connected)
+{
+	static struct app_bt_evt_t per_con_discon_evt;
+	per_con_discon_evt.type = (connected ? APP_BT_EVT_PER_CONNECTED : APP_BT_EVT_PER_DISCONNECTED);
+	per_con_discon_evt.per_conn = conn;
+	m_callback(&per_con_discon_evt);
 }
 
 static bool target_adv_name_found(struct bt_data *data, void *user_data)
@@ -285,69 +294,86 @@ static void connected(struct bt_conn *conn, uint8_t reason)
 {
 	char addr[BT_ADDR_LE_STR_LEN];
 
-	bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
+	bt_conn_get_info(conn, &conn_info);
+	// One of the peripherals/thingy's connected
+	if (conn_info.role == BT_CONN_ROLE_CENTRAL) {
+		bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
 
-	if (reason) {
-		LOG_ERR("Failed to connect to %s (%u)", addr, reason);
+		if (reason) {
+			LOG_ERR("Failed to connect to %s (%u)", addr, reason);
 
-		bt_conn_unref(conn_connecting);
+			bt_conn_unref(conn_connecting);
+			conn_connecting = NULL;
+
+			start_scan();
+			return;
+		}
+
 		conn_connecting = NULL;
 
-		start_scan();
-		return;
-	}
+		conn_count++;
+		
+		if (conn_count < CONFIG_BT_MAX_CONN) {
+			//start_scan(); // Try to skip this, in order to speed up the connection procedure
+		}
 
-	conn_connecting = NULL;
+		struct per_context_t *peripheral = get_free_per_context();
+		if (peripheral) {
+			peripheral->conn = conn;
+			peripheral->ready = false;
+		}
 
-	conn_count++;
-	
-	if (conn_count < CONFIG_BT_MAX_CONN) {
-		//start_scan(); // Try to skip this, in order to speed up the connection procedure
-	}
-
-	struct per_context_t *peripheral = get_free_per_context();
-	if (peripheral) {
-		peripheral->conn = conn;
-		peripheral->ready = false;
-	}
-
-	LOG_DBG("Connected (%u): %s", conn_count, addr);
+		LOG_DBG("Connected (%u): %s", conn_count, addr);
 
 #if defined(CONFIG_BT_SMP)
-	int err = bt_conn_set_security(conn, BT_SECURITY_L2);
+		int err = bt_conn_set_security(conn, BT_SECURITY_L2);
 
-	if (err) {
-		LOG_ERR("Failed to set security (%d).", err);
-	}
+		if (err) {
+			LOG_ERR("Failed to set security (%d).", err);
+		}
 #endif
 
 #if defined(CONFIG_BT_GATT_CLIENT)
-	mtu_exchange(conn);
+		mtu_exchange(conn);
 #endif
+	}
+	// The central/phone connected
+	else {
+		fwd_event_per_link_con_discon(conn, true);
+	}
 }
 
 static void disconnected(struct bt_conn *conn, uint8_t reason)
 {
 	char addr[BT_ADDR_LE_STR_LEN];
 
-	bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
+	bt_conn_get_info(conn, &conn_info);
 
-	bt_conn_unref(conn);
+	// One of the peripherals/thingy's disconnected
+	if (conn_info.role == BT_CONN_ROLE_CENTRAL) {
+		bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
 
-	struct per_context_t *peripheral = get_per_context_from_conn(conn);
-	if (peripheral) {
-		peripheral->used = false;
-	} 
+		bt_conn_unref(conn);
 
-	if ((conn_count == 1U) && is_disconnecting) {
-		is_disconnecting = false;
-		start_scan();
+		struct per_context_t *peripheral = get_per_context_from_conn(conn);
+		if (peripheral) {
+			peripheral->used = false;
+		} 
+
+		if ((conn_count == 1U) && is_disconnecting) {
+			is_disconnecting = false;
+			start_scan();
+		}
+		conn_count--;
+
+		LOG_INF("Disconnected (count %i): %s (reason 0x%02x)", conn_count, addr, reason);
+
+		fwd_event_con_num_change(conn_count);
 	}
-	conn_count--;
-
-	LOG_INF("Disconnected (count %i): %s (reason 0x%02x)", conn_count, addr, reason);
-
-	fwd_event_con_num_change(conn_count);
+	// The central (phone) disconnected
+	else {
+		fwd_event_per_link_con_discon(conn, false);
+	}
 }
 
 static bool le_param_req(struct bt_conn *conn, struct bt_le_conn_param *param)
