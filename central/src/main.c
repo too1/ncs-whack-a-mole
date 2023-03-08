@@ -37,7 +37,6 @@ void on_app_bt_event(struct app_bt_evt_t *event)
 			break; 
 		case APP_BT_EVT_RX_DATA:
 			mygame.bt_rx(&mygame, event);
-			app_bt_per_send_str(event->data, event->data_len);
 			break;
 		case APP_BT_EVT_PER_CONNECTED:
 			app_bt_per_connected(event->per_conn);
@@ -46,6 +45,11 @@ void on_app_bt_event(struct app_bt_evt_t *event)
 			app_bt_per_disconnected(event->per_conn);
 			break; 			
 	}
+}
+
+void on_game_bt_per_send(const uint8_t *data, uint16_t len)
+{
+	app_bt_per_send_str(data, len);
 }
 
 void on_game_bt_send(uint32_t con_index, const uint8_t *data, uint16_t len)
@@ -59,7 +63,6 @@ void on_game_bt_send(uint32_t con_index, const uint8_t *data, uint16_t len)
 	printk("\n");
 #endif
 	app_bt_send_str(con_index, data, len);
-	app_bt_per_send_str(data, len);
 }
 
 void main(void)
@@ -85,6 +88,7 @@ void main(void)
 	}
 
 	mygame.bt_send = on_game_bt_send;
+	mygame.bt_per_send = on_game_bt_per_send;
 	whackamole_init(&mygame);
 
 	mygame.play(&mygame);
