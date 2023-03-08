@@ -1,4 +1,4 @@
-#include <app_bt_per.h>
+#include <app_bt_ctrl.h>
 #include <zephyr/types.h>
 #include <zephyr/bluetooth/bluetooth.h>
 #include <zephyr/bluetooth/uuid.h>
@@ -8,7 +8,7 @@
 
 #include <zephyr/logging/log.h>
 
-#define LOG_MODULE_NAME app_bt_per
+#define LOG_MODULE_NAME app_bt_ctrl
 LOG_MODULE_REGISTER(LOG_MODULE_NAME, LOG_LEVEL_DBG);
 
 #define DEVICE_NAME CONFIG_BT_DEVICE_NAME
@@ -35,21 +35,21 @@ static struct bt_nus_cb nus_cb = {
 	.received = bt_receive_cb,
 };
 
-int app_bt_per_connected(struct bt_conn *conn)
+int app_bt_ctrl_connected(struct bt_conn *conn)
 {
 	LOG_INF("Connected!");
 	current_conn = conn;
 	return 0;
 }
 
-int app_bt_per_disconnected(struct bt_conn *conn)
+int app_bt_ctrl_disconnected(struct bt_conn *conn)
 {
 	LOG_INF("Disconnected!");
 	current_conn = 0;
 	return 0;
 }
 
-int app_bt_per_init(app_bt_per_callback_t callback)
+int app_bt_ctrl_init(app_bt_ctrl_callback_t callback)
 {
 	int err = bt_nus_init(&nus_cb);
 	if (err) {
@@ -69,11 +69,11 @@ int app_bt_per_init(app_bt_per_callback_t callback)
 	return 0;
 }
 
-int app_bt_per_send_str(const uint8_t *string, uint16_t len)
+int app_bt_ctrl_send_str(const uint8_t *string, uint16_t len)
 {	
 	int err;
 	if (current_conn == 0) {
-		LOG_WRN("No peripheral connected. Ignoring peripheral TX");
+		LOG_WRN("No controller connected. Ignoring peripheral TX");
 		return -ENOTCONN;
 	}
 	err = bt_nus_send(current_conn, string, len); 

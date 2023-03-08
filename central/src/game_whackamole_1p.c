@@ -83,7 +83,7 @@ static void send_per_cmd_chg_start(uint8_t p_index, uint16_t target_time)
 	per_cmd_buf[i++] = p_index;
 	per_cmd_buf[i++] = (uint8_t)(target_time >> 8);
 	per_cmd_buf[i++] = (uint8_t)target_time;
-	this->bt_per_send(per_cmd_buf, i);
+	this->bt_ctrl_send(per_cmd_buf, i);
 }
 
 static void send_per_cmd_chg_finish(uint8_t p_index, uint16_t time, uint16_t target, bool success, uint16_t points, uint16_t fouls)
@@ -100,7 +100,7 @@ static void send_per_cmd_chg_finish(uint8_t p_index, uint16_t time, uint16_t tar
 	per_cmd_buf[i++] = (uint8_t)points;
 	per_cmd_buf[i++] = (uint8_t)(fouls >> 8);
 	per_cmd_buf[i++] = (uint8_t)fouls;
-	this->bt_per_send(per_cmd_buf, i);
+	this->bt_ctrl_send(per_cmd_buf, i);
 }
 
 static void send_per_cmd_round_start()

@@ -103,12 +103,12 @@ static void fwd_event_rx_data(uint32_t con_index, const uint8_t *data, uint16_t 
 	m_callback(&rx_evt);
 }
 
-static void fwd_event_per_link_con_discon(struct bt_conn *conn, bool connected)
+static void fwd_event_ctrl_link_con_discon(struct bt_conn *conn, bool connected)
 {
-	static struct app_bt_evt_t per_con_discon_evt;
-	per_con_discon_evt.type = (connected ? APP_BT_EVT_PER_CONNECTED : APP_BT_EVT_PER_DISCONNECTED);
-	per_con_discon_evt.per_conn = conn;
-	m_callback(&per_con_discon_evt);
+	static struct app_bt_evt_t ctrl_con_discon_evt;
+	ctrl_con_discon_evt.type = (connected ? APP_BT_EVT_CTRL_CONNECTED : APP_BT_EVT_CTRL_DISCONNECTED);
+	ctrl_con_discon_evt.ctrl_conn = conn;
+	m_callback(&ctrl_con_discon_evt);
 }
 
 static bool target_adv_name_found(struct bt_data *data, void *user_data)
@@ -339,7 +339,7 @@ static void connected(struct bt_conn *conn, uint8_t reason)
 	}
 	// The central/phone connected
 	else {
-		fwd_event_per_link_con_discon(conn, true);
+		fwd_event_ctrl_link_con_discon(conn, true);
 	}
 }
 
@@ -372,7 +372,7 @@ static void disconnected(struct bt_conn *conn, uint8_t reason)
 	}
 	// The central (phone) disconnected
 	else {
-		fwd_event_per_link_con_discon(conn, false);
+		fwd_event_ctrl_link_con_discon(conn, false);
 	}
 }
 
