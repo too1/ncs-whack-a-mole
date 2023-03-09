@@ -103,19 +103,35 @@ static void send_per_cmd_chg_finish(uint8_t p_index, uint16_t time, uint16_t tar
 	this->bt_ctrl_send(per_cmd_buf, i);
 }
 
-static void send_per_cmd_round_start()
+static void send_per_cmd_round_start(int round_index, int round_total)
 {
-
+	int i = 0;
+	per_cmd_buf[i++] = 'C';
+	per_cmd_buf[i++] = (uint8_t)round_index;
+	per_cmd_buf[i++] = (uint8_t)round_total;
+	this->bt_ctrl_send(per_cmd_buf, i);
 }
 
 static void send_per_cmd_game_start()
 {
-
+	int i = 0;
+	per_cmd_buf[i++] = 'D';
+	this->bt_ctrl_send(per_cmd_buf, i);
 }
 
-static void send_per_cmd_game_finish()
+static void send_per_cmd_game_finish(int score, int min, int max, int average)
 {
-
+	int i = 0;
+	per_cmd_buf[i++] = 'E';
+	per_cmd_buf[i++] = (uint8_t)(score >> 8);
+	per_cmd_buf[i++] = (uint8_t)score;
+	per_cmd_buf[i++] = (uint8_t)(min >> 8);
+	per_cmd_buf[i++] = (uint8_t)min;
+	per_cmd_buf[i++] = (uint8_t)(max >> 8);
+	per_cmd_buf[i++] = (uint8_t)max;
+	per_cmd_buf[i++] = (uint8_t)(average >> 8);
+	per_cmd_buf[i++] = (uint8_t)average;
+	this->bt_ctrl_send(per_cmd_buf, i);
 }
 
 #define CONSOLE_SCORE_PROGRESS_COL 50
@@ -261,6 +277,7 @@ static void whackamole_play(struct game_t *game)
 		for(int i = 0; i < player[0].per_num; i++) {
 			game->bt_send(i, "RST", 3);
 		}
+		send_per_cmd_game_start();
 
 		k_msleep(1000);
 
@@ -275,6 +292,7 @@ static void whackamole_play(struct game_t *game)
 			
 			printk("\nRound %i starting... Respond quicker than %i ms!\n", (whackamole.current_round + 1), target_time);
 			send_color_effect(PER_INDEX_ALL, '0', &led_effect_new_round, 0);
+			send_per_cmd_round_start(whackamole.current_round, MAX_ROUNDS);
 
 			console_print_goal_line_index = (target_time / 50) + 2;
 			for (int i = 0; i < (console_print_goal_line_index - 1); i++) printk(" ");
@@ -315,11 +333,14 @@ static void whackamole_play(struct game_t *game)
 				if (result > max) max = result;
 				total += result; 
 			}
+			printk("  Total score:  %i points\n", player[0].score);
 			printk("  Best result:  %i ms\n", min);
 			printk("  Worst result: %i ms\n", max);
 			player[0].challenge_average = total / player[0].challenge_counter;
 			printk("  Average:      %i ms\n", player[0].challenge_average);
 		}
+		
+		send_per_cmd_game_finish(player[0].score, min, max, player[0].challenge_average);
 
 		printk("\nPress any button to start a new game\n");
 	}
