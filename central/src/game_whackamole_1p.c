@@ -103,12 +103,14 @@ static void send_per_cmd_chg_finish(uint8_t p_index, uint16_t time, uint16_t tar
 	this->bt_ctrl_send(per_cmd_buf, i);
 }
 
-static void send_per_cmd_round_start(int round_index, int round_total)
+static void send_per_cmd_round_start(int round_index, int round_total, int target_time)
 {
 	int i = 0;
 	per_cmd_buf[i++] = 'C';
 	per_cmd_buf[i++] = (uint8_t)round_index;
 	per_cmd_buf[i++] = (uint8_t)round_total;
+	per_cmd_buf[i++] = (uint8_t)(target_time >> 8);
+	per_cmd_buf[i++] = (uint8_t)target_time;
 	this->bt_ctrl_send(per_cmd_buf, i);
 }
 
@@ -140,17 +142,21 @@ static int console_print_goal_line_index;
 static bool challenge_pending = false;
 static int foul_presses = 0;
 
-void challenge_finalize(uint32_t time, bool success, int pad_lines)
+void challenge_finalize(uint32_t time, uint32_t target_time, bool success, int pad_lines)
 {
  	if(success) {
 		// Response time sufficient, award one point
 		player[0].score++;
+		if(foul_presses > 0) {
+			player[0].score -= foul_presses;
+			player[0].fouls += foul_presses;
+		}
 		printk("+");
 		int goal_line_tmp_index = pad_lines + console_print_goal_line_index - CONSOLE_SCORE_PROGRESS_COL - 1;
 		for(int i = 0; i < pad_lines; i++) (i == goal_line_tmp_index) ? printk("|") : printk(" ");
 		printk("+1 point. Score %i. Time %i ms\n", player[0].score, time);
 		send_color_effect(PER_INDEX_ALL, '0', &led_effect_result_good, 0);
-		send_per_cmd_chg_finish(0, (uint16_t)time, 999, true, 1, 0);
+		send_per_cmd_chg_finish(0, (uint16_t)time, target_time, true, 1, foul_presses);
 	}
 	else {
 		// Too slow, no points awarded
@@ -166,9 +172,9 @@ void challenge_finalize(uint32_t time, bool success, int pad_lines)
 		}
 		printk("\n");
 		send_color_effect(PER_INDEX_ALL, '0', &led_effect_result_bad, 0);
-		send_per_cmd_chg_finish(0, (uint16_t)time, 999, false, 0, foul_presses);
-		foul_presses = 0;
+		send_per_cmd_chg_finish(0, (uint16_t)time, target_time, false, 0, foul_presses);
 	}
+	foul_presses = 0;
 }
 
 void whackamole_bt_rx(struct game_t *game, struct app_bt_evt_t *bt_evt)
@@ -204,10 +210,12 @@ void whackamole_bt_rx(struct game_t *game, struct app_bt_evt_t *bt_evt)
 				//printk("Received from index %i, expected %i\n", bt_evt->con_index, player[0].chg_per_index);
 
 				if(response_time < whackamole.target_pr_round[whackamole.current_round]) {
-					challenge_finalize(response_time, true, pad_spaces_to_print);
+					challenge_finalize(response_time, whackamole.target_pr_round[whackamole.current_round],
+										true, pad_spaces_to_print);
 				}
 				else {
-					challenge_finalize(response_time, false, pad_spaces_to_print);
+					challenge_finalize(response_time, whackamole.target_pr_round[whackamole.current_round],
+										false, pad_spaces_to_print);
 				}
 
 				// Add the response time to the list
@@ -225,7 +233,7 @@ void whackamole_bt_rx(struct game_t *game, struct app_bt_evt_t *bt_evt)
 				int pad_spaces_to_print = CONSOLE_SCORE_PROGRESS_COL - console_print_progress;
 				console_print_progress = -1;
 				challenge_pending = false;
-				challenge_finalize(0, false, pad_spaces_to_print);
+				challenge_finalize(0, whackamole.target_pr_round[whackamole.current_round], false, pad_spaces_to_print);
 			}
             k_sem_give(&m_sem_peripheral_update);
             break;
@@ -292,7 +300,7 @@ static void whackamole_play(struct game_t *game)
 			
 			printk("\nRound %i starting... Respond quicker than %i ms!\n", (whackamole.current_round + 1), target_time);
 			send_color_effect(PER_INDEX_ALL, '0', &led_effect_new_round, 0);
-			send_per_cmd_round_start(whackamole.current_round, MAX_ROUNDS);
+			send_per_cmd_round_start(whackamole.current_round, MAX_ROUNDS, target_time);
 
 			console_print_goal_line_index = (target_time / 50) + 2;
 			for (int i = 0; i < (console_print_goal_line_index - 1); i++) printk(" ");
