@@ -28,7 +28,7 @@ static struct bt_conn *current_conn = 0;
 static void bt_receive_cb(struct bt_conn *conn, const uint8_t *const data,
 			  uint16_t len)
 {
-	LOG_DBG("Data received, %i bytes", len);
+	LOG_INF("CTRL data received, %i bytes", len);
 }
 
 static struct bt_nus_cb nus_cb = {

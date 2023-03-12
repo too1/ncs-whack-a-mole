@@ -32,6 +32,8 @@ struct whackamole_t {
     int round_duration_s;
 	int number_of_rounds;
 	int current_round;
+	int challenges_pr_round;
+	int challenge_index;
 	int target_pr_round[MAX_ROUNDS];
     int time, time_until_challenge;
     int challenge_int_min, challenge_int_range;
@@ -81,6 +83,7 @@ static void send_per_cmd_chg_start(uint8_t p_index, uint16_t target_time)
 	int i = 0;
 	per_cmd_buf[i++] = 'A';
 	per_cmd_buf[i++] = p_index;
+	per_cmd_buf[i++] = (uint8_t)num_players;
 	per_cmd_buf[i++] = (uint8_t)(target_time >> 8);
 	per_cmd_buf[i++] = (uint8_t)target_time;
 	this->bt_ctrl_send(per_cmd_buf, i);
@@ -109,6 +112,7 @@ static void send_per_cmd_round_start(int round_index, int round_total, int targe
 	per_cmd_buf[i++] = 'C';
 	per_cmd_buf[i++] = (uint8_t)round_index;
 	per_cmd_buf[i++] = (uint8_t)round_total;
+	per_cmd_buf[i++] = (uint8_t)num_players;
 	per_cmd_buf[i++] = (uint8_t)(target_time >> 8);
 	per_cmd_buf[i++] = (uint8_t)target_time;
 	this->bt_ctrl_send(per_cmd_buf, i);
@@ -133,6 +137,14 @@ static void send_per_cmd_game_finish(int score, int min, int max, int average)
 	per_cmd_buf[i++] = (uint8_t)max;
 	per_cmd_buf[i++] = (uint8_t)(average >> 8);
 	per_cmd_buf[i++] = (uint8_t)average;
+	this->bt_ctrl_send(per_cmd_buf, i);
+}
+
+static void send_per_cmd_num_con_change(int num_con)
+{
+	int i = 0;
+	per_cmd_buf[i++] = 'F';
+	per_cmd_buf[i++] = (uint8_t)num_con;
 	this->bt_ctrl_send(per_cmd_buf, i);
 }
 
@@ -260,6 +272,7 @@ static void whackamole_play(struct game_t *game)
     whackamole.time = 0;
     whackamole.challenge_int_min = 2 * TICKS_PR_SEC;
     whackamole.challenge_int_range = 3 * TICKS_PR_SEC / 2;
+	whackamole.challenges_pr_round = 10;
     whackamole.chg_rsp_total = whackamole.chg_rsp_counter = 0;
 	whackamole.game_running = false;
 
@@ -269,6 +282,7 @@ static void whackamole_play(struct game_t *game)
 		while (num_players < 1 || !ping_received) {
 			if (k_sem_take(&m_sem_num_players_update, K_MSEC(100)) == 0) {
 				printk("\rControllers connected: %i   ", num_players);
+				send_per_cmd_num_con_change(num_players);	
 			}
 		}
 
@@ -310,6 +324,7 @@ static void whackamole_play(struct game_t *game)
 			
 			whackamole.time = 0;
 			whackamole.time_until_challenge = 20;
+			whackamole.challenge_index = 0;
 			do {			
 				k_sem_take(&m_sem_second_tick, K_FOREVER);
 				if (whackamole.time >= whackamole.time_until_challenge) {	
@@ -317,13 +332,15 @@ static void whackamole_play(struct game_t *game)
 					int random_peripheral_index = rand() % player[0].per_num;
 					player[0].chg_per_index_previous = player[0].chg_per_index;
 					player[0].chg_per_index = random_peripheral_index;
+					foul_presses = 0;
 					challenge_pending = true;
 					send_color_effect(random_peripheral_index, '2', &led_effect_challenge, target_time + TIMEOUT_BUFFER_MS);
 					console_print_progress = true;
-					whackamole.time_until_challenge = whackamole.time + target_time / TICKS_PR_SEC + rand() % whackamole.challenge_int_range;
+					whackamole.time_until_challenge = whackamole.time + (target_time + 200) / TICKS_PR_SEC + rand() % whackamole.challenge_int_range;
 					send_per_cmd_chg_start(random_peripheral_index, target_time);
+					whackamole.challenge_index++;
 				}
-			} while(whackamole.time < whackamole.round_duration_s || challenge_pending);
+			} while(whackamole.challenge_index < whackamole.challenges_pr_round || challenge_pending);
 		}
 
 		// Print an end of round report
